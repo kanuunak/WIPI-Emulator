@@ -1,0 +1,42 @@
+name: android-debug
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: android-debug-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Android SDK 36 / NDK 27.1
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "ndk;27.1.12297006" "platforms;android-36" "build-tools;35.0.0" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.1.12297006" >> "$GITHUB_ENV"
+      - name: Rust Android target
+        run: rustup target add aarch64-linux-android
+      - name: Rust cache (optional)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build libwipi_android.so (arm64-v8a)
+        run: bash scripts/build-rust-android.sh arm64
+      - name: Unit tests + debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Draft release with APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "debug-${GITHUB_RUN_NUMBER}" android/app/build/outputs/apk/debug/app-debug.apk \
+            --draft --target "${GITHUB_SHA}" \
+            --title "Debug ${GITHUB_RUN_NUMBER} (${GITHUB_REF_NAME})" \
+            --notes "commit ${GITHUB_SHA}"
