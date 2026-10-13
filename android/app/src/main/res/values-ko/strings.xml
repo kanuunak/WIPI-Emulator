@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">WIPI 에뮬</string>
+    <string name="app_name">폴드 레트로</string>
     <string name="library_empty_title">게임이 없습니다</string>
     <string name="library_empty_hint">우측 상단 + 로 .zip / .jar 게임을 추가하세요</string>
     <string name="action_add_game">게임 추가</string>
@@ -50,5 +50,6 @@
     <string name="license_role_smaf">SMAF(피처폰 음원 포맷) 재생. github.com/dlunch/smaf</string>
     <string name="license_role_rodio">오디오 재생 (rodio는 MIT, cpal은 Apache-2.0)</string>
     <string name="license_role_rustysynth">소프트웨어 MIDI 신시사이저</string>
+    <string name="license_role_font">게임 화면 글꼴</string>
     <string name="license_role_soundfont">MIDI 사운드폰트</string>
 </resources>

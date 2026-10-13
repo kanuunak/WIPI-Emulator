@@ -14,5 +14,6 @@ public abstract class Canvas extends Displayable {
     public int getGameAction(int keyCode) { return 0; }
     protected void keyPressed(int keyCode) {}
     protected void keyReleased(int keyCode) {}
+    protected void keyRepeated(int keyCode) {}
     public void setFullScreenMode(boolean mode) {}
 }
