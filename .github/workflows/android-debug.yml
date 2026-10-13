@@ -1,12 +1,18 @@
 name: android-debug
 on:
   push:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
 permissions:
   contents: write
 concurrency:
   group: android-debug-${{ github.ref }}
   cancel-in-progress: true
+defaults:
+  run:
+    shell: bash   # bash -eo pipefail: '| tee'가 실패를 가리지 않는다
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -17,21 +23,20 @@ jobs:
         run: |
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --licenses > /dev/null || true
-          "$SDKM" --install "ndk;27.1.12297006" "platforms;android-36" "build-tools;35.0.0" > /dev/null
+          "$SDKM" --install "ndk;27.1.12297006" "platforms;android-36" "build-tools;35.0.0" > "$RUNNER_TEMP/ci.log" 2>&1
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.1.12297006" >> "$GITHUB_ENV"
       - name: Rust Android target
-        run: rustup target add aarch64-linux-android
+        run: rustup target add aarch64-linux-android 2>&1 | tee "$RUNNER_TEMP/ci.log"
       - name: Rust cache (optional)
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
       - name: Build libwipi_android.so (arm64-v8a)
-        run: bash scripts/build-rust-android.sh arm64
+        run: bash scripts/build-rust-android.sh arm64 2>&1 | tee "$RUNNER_TEMP/ci.log"
       - name: Unit tests + debug APK
         working-directory: android
         run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
+          { chmod +x gradlew && ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug; } 2>&1 | tee "$RUNNER_TEMP/ci.log"
       - name: Draft release with APK
         env:
           GH_TOKEN: ${{ github.token }}
@@ -39,4 +44,21 @@ jobs:
           gh release create "debug-${GITHUB_RUN_NUMBER}" android/app/build/outputs/apk/debug/app-debug.apk \
             --draft --target "${GITHUB_SHA}" \
             --title "Debug ${GITHUB_RUN_NUMBER} (${GITHUB_REF_NAME})" \
-            --notes "commit ${GITHUB_SHA}"
+            --notes "commit ${GITHUB_SHA}" 2>&1 | tee "$RUNNER_TEMP/ci.log"
+      # 클라우드 세션은 로그 파일을 내려받지 못할 수 있다. 실패한 단계의 오류 줄과 끝부분을
+      # 어노테이션으로 남겨서 'gh run view <id>'만으로 원인을 읽게 한다.
+      - name: Failure log as annotation
+        if: failure()
+        run: |
+          LOG="$RUNNER_TEMP/ci.log"
+          if [ ! -s "$LOG" ]; then
+            echo "::error title=CI failure log::(no build output captured)"
+            exit 0
+          fi
+          {
+            grep -nE '(^e: |error(\[E[0-9]+\])?:|FAILED|What went wrong|Exception|No such file|not found)' "$LOG" | tail -n 30 || true
+            echo '----- last 40 lines -----'
+            tail -n 40 "$LOG"
+          } | cut -c1-240 > "$RUNNER_TEMP/fail.txt"
+          MSG=$(sed -e 's/%/%25/g' -e 's/\r//g' "$RUNNER_TEMP/fail.txt" | awk 'BEGIN { ORS = "%0A" } { print }')
+          echo "::error title=CI failure log::${MSG}"
