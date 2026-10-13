@@ -18,11 +18,11 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.parkjeongseop.wipi"
+        applicationId = "com.knifecrab.foldretro"
         minSdk = 26
         targetSdk = 36
         versionCode = 5  // 매 업로드 증가 필요
-        versionName = "0.3.1"
+        versionName = "0.3.1-fold.0.1"
         // AAB는 ABI별로 자동 분할되므로 실기기(arm64-v8a) 슬라이스만 배포됨.
         // x86_64는 에뮬레이터용이라 Play 배포 AAB엔 불필요하지만, 둘 다 넣어도 무방(APK로 뽑을 때 편함).
         ndk {
@@ -31,6 +31,13 @@ android {
     }
 
     signingConfigs {
+        // 개인용 고정 디버그 키: 클라우드·CI·로컬 빌드의 서명을 같게 해서 폰에서 덮어쓰기 업데이트(게임·세이브 유지)
+        getByName("debug") {
+            storeFile = file("fold-retro-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (keystorePropsFile.exists()) {
             create("release") {
                 storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
@@ -76,6 +83,19 @@ android {
     }
 }
 
+// .so가 없으면 앱이 실행 즉시 크래시하므로 APK 빌드 단계에서 막는다(단위 테스트는 .so 없이 실행).
+val checkJniLibs by tasks.registering {
+    val so = layout.projectDirectory.file("src/main/jniLibs/arm64-v8a/libwipi_android.so")
+    doLast {
+        if (!so.asFile.exists()) {
+            throw GradleException("libwipi_android.so 없음: scripts/build-rust-android.sh(Windows: .ps1)를 먼저 실행하세요")
+        }
+    }
+}
+tasks.configureEach {
+    if (name.startsWith("merge") && name.endsWith("JniLibFolders")) dependsOn(checkJniLibs)
+}
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.9.3")
@@ -84,4 +104,5 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended") // SF Symbols 대응 아이콘 (이모지 대체)
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    testImplementation("junit:junit:4.13.2")
 }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">WIPI Emulator</string>
+    <string name="app_name">Fold Retro</string>
     <string name="library_empty_title">No games yet</string>
     <string name="library_empty_hint">Tap + at the top right to add a .zip / .jar game</string>
     <string name="action_add_game">Add game</string>
@@ -50,5 +50,6 @@
     <string name="license_role_smaf">SMAF (feature-phone audio format) playback. github.com/dlunch/smaf</string>
     <string name="license_role_rodio">Audio playback (rodio is MIT, cpal is Apache-2.0)</string>
     <string name="license_role_rustysynth">Software MIDI synthesizer</string>
+    <string name="license_role_font">In-game text font</string>
     <string name="license_role_soundfont">MIDI soundfont</string>
 </resources>
