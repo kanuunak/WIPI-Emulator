@@ -11,8 +11,19 @@ cd android && ./gradlew :app:testDebugUnitTest :app:compileDebugKotlin
 ```
 - 의존성 캐시가 없는 첫 실행은 약 3분, 이후 약 40초.
 - Maven Central이 일시적으로 HTTP 429를 줄 수 있다. 같은 명령을 다시 실행하면 통과했다.
+  재시도해도 계속 429면 세션 전용 init 스크립트로 Google의 Maven Central 미러를 먼저 조회한다(커밋하지 않음, Phase 1에서 사용):
+  ```sh
+  cat > /tmp/mirror.init.gradle.kts <<'EOF2'
+  val mirror = "https://maven-central.storage-download.googleapis.com/maven2/"
+  beforeSettings {
+      pluginManagement.repositories { maven(mirror) }
+      dependencyResolutionManagement.repositories { maven(mirror) }
+  }
+  EOF2
+  ./gradlew --init-script /tmp/mirror.init.gradle.kts :app:testDebugUnitTest :app:compileDebugKotlin
+  ```
 - `assembleDebug`는 `.so`가 없어 `checkJniLibs`에서 실패하는 게 정상이다(CI가 담당).
-- 현재 단위 테스트 소스는 없다(`testDebugUnitTest NO-SOURCE`). Phase 1부터 추가된다.
+- 단위 테스트: `app/src/test/java/com/parkjeongseop/wipi/`(Phase 1: `KeyInputHubTest` 8건).
 
 ## 2. CI
 `.github/workflows/android-debug.yml`이 푸시마다 NDK 설치 → .so → 단위 테스트 → 디버그 APK → 드래프트 릴리스 `debug-<번호>`를 만든다. 서명은 고정 디버그 키(`android/app/fold-retro-debug.keystore`)라 폰에서 덮어쓰기 업데이트가 된다. 개인 테스트 전용 키다.
