@@ -59,7 +59,8 @@ Debug 10 영상: ◀를 화면 **왼쪽 끝 가까이** 누른 채 위로 밀자
 - 코드: tick이 Err를 돌려주면 에뮬 스레드는 오류를 저장하고 **바로 끝난다**(session.rs `Ok(Err(e)) => … break`). 그래서 이어지는 `nativeStop`의 join은 즉시 끝난다 → 이 경로에서 UI 정지는 없다.
 - 뒤로가기가 안 먹은 이유: 라이브러리에 BackHandler가 없어 뒤로가기 = 앱이 백그라운드로(Android 12+ 루트 Activity는 finish하지 않음) → 다시 열면 같은 배너(remember 상태)가 그대로.
 - 수정: 배너에는 안내 문구 + 원문 앞 3줄(고정폭, 말줄임)만, [로그 공유][닫기] 버튼, 라이브러리에서 뒤로가기 = 배너 닫기. 원문 전체는 진단 로그로.
-- `Allocation failure` 자체는 코어의 에뮬 메모리 할당 실패(wie-util `WieError::AllocationFailure`, KTF 네이티브 svc 4 경유)다. 게임 파일이 없어 headless 재현은 못 했다 — 파일을 받으면 `wipi_android` headless로 오류·STUBS 줄을 확인한다.
+- `Allocation failure`의 원인(붕어빵타이쿤3, KTF — 사용자 파일로 headless 재현): 게임이 첫 실행에 없는 "option" DB를 읽기 모드로 연다 → KTF 코어는 없는 DB도 빈 DB로 열어 준다(데몬헌터 때문에 의도된 동작) → 결과 확인 없이 8바이트를 읽는데 EOF라 받는 칸이 스택 쓰레기로 남는다 → 그 값(0x4025566c)을 크기로 `MC_knlAlloc` → 약 1GB 요청 실패.
+- 수정(사용자 승인, B안): wie `stream_read`가 EOF에서 받는 칸을 0으로 채운다(최대 256바이트, NULL 제외, 반환값 -23 유지). `kanuunak/wie`(ParkJeongseop/wie 포크) 브랜치 `fix/ktf-db-read-eof-zero` @ d9675f5f, `rust/Cargo.toml`이 이 rev를 쓴다. wie 단위 테스트 34개 통과(신규 1). headless: 타이틀→튜토리얼→붕어빵 틀 화면까지, 40초 오류 없음. 남은 STUBS: `MC_knlUnsetTimer`·`MC_mdaClipSetVolume`·`MC_mdaClipGetVolume`·`Display`·`WIPICX_incMemInterface`. 기각한 A안(KTF도 없는 DB를 읽기 모드로 열면 -12)은 데몬헌터를 깨뜨릴 수 있다. 사용자 실기기: 데몬헌터 정상.
 
 원래 추정(아래)은 **다른 경로의 잠재 위험**으로 남는다 — Kotlin 쪽 방어는 Phase 3.5에서 넣었다:
 
@@ -76,6 +77,8 @@ Debug 10 영상: ◀를 화면 **왼쪽 끝 가까이** 누른 채 위로 밀자
 1. 사용자: Phase 3.5 빌드로 §3의 확인 목록 진행. 문제가 생기면 진단 로그 파일을 그대로 첨부(앱·기기·오류 원문·logcat이 한 파일에 있음).
 2. Phase 4(가이드 §4 그대로) — 단, 항목 3의 `git diff --stat 43a6098 -- rust/`는 이제 비어 있지 않다. session.rs 승인 예외(#5)만 있어야 정상으로 판정(Phase 3.5는 rust/를 건드리지 않았다).
 3. 사용자 결정 대기: §5의 rust/ 변경안 ①②(실제로 tick이 멈추는 게임이 나오면 우선순위가 올라간다). 지원 안 되는 게임 파일을 받으면 headless로 오류·STUBS 확인.
+   - 배속(사용자 요청): 게임이 보는 시계(`MobilePlatform::now`)에 배율을 곱하는 방식 + `nativeSetSpeed` JNI 1개(규칙 1·2 예외 필요). 사용자 결정 = **먼저 측정**: HUD 스레드별 CPU에서 `wie-emulator`가 90~100%면 폰이 못 따라가는 것(배속 무의미, 성능 개선), 한참 낮으면 배속 구현. 같은 장치로 일시정지 중 시계를 멈추면 재개 시 시간 점프(명세 §4.3 P2)도 풀린다.
+   - wie 수정 절차(이번에 확립): `kanuunak/wie`에 `fix/…` 브랜치 → 코어 테스트(`cargo test -p <크레이트>`) → headless로 해당 게임·데모 확인 → `rust/Cargo.toml` rev 교체(`cargo metadata`로 Cargo.lock의 wie 출처 줄만 갱신, lock 재생성 금지).
 4. §4 입력 끊김: 사용자 입력 기록 스크린샷을 받으면 판정.
 5. P1 백로그 추가분: 화면 방향 고정 옵션(메인 화면용), 키패드 햅틱 세기, 가로 분할(SPLIT, 커버 가로 포함).
 

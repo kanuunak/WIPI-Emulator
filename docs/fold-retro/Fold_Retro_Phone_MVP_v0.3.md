@@ -3,7 +3,7 @@
 - 작성일: 2026-10-13
 - 상태: Claude 교차 검토 반영 + 실행 경로 변경(클라우드 세션 크레딧 우선) / 구현 전
 - 기준 소스: `ParkJeongseop/WIPI-Emulator` @ `43a6098` (v0.3.1, 2026-10-09)
-- 기준 코어: `ParkJeongseop/wie` @ `38f7e04f` (`rust/Cargo.toml`에 git rev로 고정, `dlunch/wie`의 포크)
+- 기준 코어: `ParkJeongseop/wie` @ `38f7e04f` (`rust/Cargo.toml`에 git rev로 고정, `dlunch/wie`의 포크). 2026-10-14부터 `kanuunak/wie` @ `d9675f5f`(38f7e04f + KTF DB 수정 1건)
 - 기준 기기: Galaxy Z Fold5 (커버 6.2" 904×2316, 메인 7.6" 1812×2176)
 - 가칭: Fold Retro Phone (서비스·상표명 확정 아님)
 
