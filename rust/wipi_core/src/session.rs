@@ -13,7 +13,7 @@ use std::{
         mpsc::{Receiver, Sender, channel},
     },
     thread::JoinHandle,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use wie_backend::{Event, KeyCode};
@@ -101,6 +101,13 @@ fn emulator_thread(
 
     let mut pressed: HashMap<KeyCode, Instant> = HashMap::new();
 
+    // tick 간격 하한. emulator.tick()은 할 일이 없으면(모든 태스크가 sleep 중) 즉시 반환하므로, 쉬지 않고 부르면
+    // 옛날 게임에서도 CPU 코어 하나를 100% 쓴다(발열·배터리). tick이 이 간격보다 빨리 끝나면 남은 시간만큼 잔다.
+    // 무거운 tick(코어 예산 최대 8ms)이 간격을 넘기면 자지 않으므로 처리량은 줄지 않는다.
+    // 간격 = 게임 태스크가 늦게 깨는 최대 시간. 호스트 측정(데모 2종, 15초): 쉬지 않음 CPU 100% →
+    // 1ms 11~12%, 2ms 10~12%, 4ms 9~11%로 CPU는 거의 같고 프레임 지연만 커져서(WIPI-C 데모 fps −2.5% / −4% / −7%) 1ms.
+    const TICK_INTERVAL: Duration = Duration::from_millis(1);
+
     while !stop.load(Ordering::SeqCst) {
         // 일시정지: tick을 멈춰 게임 세계를 얼린다 (RetroArch 등 에뮬 표준의 auto-pause).
         // 키 이벤트는 채널에 남아 재개 후 처리된다.
@@ -108,6 +115,8 @@ fn emulator_thread(
             std::thread::sleep(std::time::Duration::from_millis(50));
             continue;
         }
+
+        let tick_start = Instant::now();
 
         // 코어의 panic(에뮬레이션 버그)이 스레드를 조용히 죽이면 앱은 "프리즈"로만
         // 보인다 — catch_unwind로 Runtime 에러로 승격해 호스트가 표시하게 한다.
@@ -145,7 +154,11 @@ fn emulator_thread(
         }));
 
         match step {
-            Ok(Ok(())) => {}
+            Ok(Ok(())) => {
+                if let Some(rest) = TICK_INTERVAL.checked_sub(tick_start.elapsed()) {
+                    std::thread::sleep(rest);
+                }
+            }
             Ok(Err(e)) => {
                 *error.lock().unwrap() = Some(SessionError {
                     kind: ErrorKind::Runtime,
