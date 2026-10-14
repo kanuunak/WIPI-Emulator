@@ -2,6 +2,7 @@ package com.parkjeongseop.wipi
 
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -11,6 +12,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -18,14 +20,20 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -49,28 +57,34 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import java.io.File
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import java.io.File
 
 const val SCREEN_WIDTH = 240
 const val SCREEN_HEIGHT = 320
@@ -264,6 +278,7 @@ class MainActivity : ComponentActivity() {
 
     // ── 에뮬레이터 화면 (iOS EmulatorScreenView가 명세) ──
 
+    @OptIn(ExperimentalFoundationApi::class)
     @Composable
     private fun EmulatorScreen(onError: (String) -> Unit, onExit: () -> Unit, onSettings: () -> Unit) {
         val vibrateOut = remember { LongArray(2) }
@@ -321,42 +336,82 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize().background(Color(0xFF202020))) {
-                // 화면 영역 — ContentScale.Fit이 영역 안에서 레터박스 (키패드 침범 없음)
-                Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    frame?.let {
-                        Image(
-                            bitmap = it,
-                            contentDescription = null,
-                            contentScale = ContentScale.Fit,
+        val frameImage = remember { EmulatorSession.frameBitmap.asImageBitmap() }
+        // 첫 프레임 도착 여부만 구독 (frameVersion 자체를 컴포지션에서 읽으면 매 프레임 재구성된다)
+        val hasFrame by remember { derivedStateOf { EmulatorSession.frameVersion > 0 } }
+        var showHud by rememberSaveable { mutableStateOf(false) } // 레이아웃 HUD, 기본 꺼짐
+
+        // 바깥: 시스템 바 뒤까지 배경을 칠한다(edge-to-edge). 크기 = 창(콘텐츠) 크기
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().background(EMULATOR_BG)) {
+            val windowW = maxWidth.value
+            val windowH = maxHeight.value
+
+            // 안쪽: 안전 영역(safeDrawing 인셋 제외) 안에서 명세 §5.3 계산 결과대로 배치
+            BoxWithConstraints(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                val density = LocalDensity.current.density
+                val layout = remember(maxWidth, maxHeight, density) {
+                    computeStackLayout(maxWidth.value, maxHeight.value, density)
+                }
+                val metrics = layoutMetrics(windowW, windowH, layout)
+                LaunchedEffect(metrics) { Log.i(LOG_TAG, metrics.logLine) }
+
+                // 게임: draw 단계에서만 frameVersion을 읽어 새 프레임마다 다시 그리기만 한다
+                Canvas(modifier = Modifier.offset(layout.game.left.dp, layout.game.top.dp).size(layout.game.width.dp, layout.game.height.dp)) {
+                    if (EmulatorSession.frameVersion > 0) {
+                        drawImage(
+                            frameImage,
+                            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
                             filterQuality = FilterQuality.None,
-                            modifier = Modifier.fillMaxSize(),
                         )
-                    } ?: Text(stringResource(R.string.emulator_loading), color = Color.White)
+                    }
+                }
+                if (!hasFrame) {
+                    Box(
+                        modifier = Modifier.offset(layout.game.left.dp, layout.game.top.dp).size(layout.game.width.dp, layout.game.height.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(stringResource(R.string.emulator_loading), color = Color.White) }
                 }
 
-                Keypad(hub = EmulatorSession.hub, hapticsEnabled = settings.keypadHaptics, modifier = Modifier.fillMaxWidth().padding(8.dp))
-            }
+                Keypad(
+                    hub = EmulatorSession.hub,
+                    hapticsEnabled = settings.keypadHaptics,
+                    keyH = layout.keyH.dp,
+                    modifier = Modifier
+                        .offset(layout.keypad.left.dp, layout.keypad.top.dp)
+                        .width(layout.keypad.width.dp)
+                        .padding(KEYPAD_MARGIN_DP.dp),
+                )
 
-            // 우상단: 일시정지 + 설정 (iOS와 동일 구성)
-            Row(modifier = Modifier.align(Alignment.TopEnd)) {
-                IconButton(onClick = { EmulatorSession.pause(PauseReason.USER) }) {
-                    Icon(Icons.Filled.Pause, stringResource(R.string.emulator_paused), tint = Color.White.copy(alpha = 0.6f))
-                }
-                IconButton(onClick = onSettings) {
-                    Icon(Icons.Filled.Settings, stringResource(R.string.action_settings), tint = Color.White.copy(alpha = 0.6f))
+                if (showHud) LayoutHud(metrics)
+
+                // 게임 우상단(안전 영역 안): 일시정지 + 설정. ⚙ 길게 누르기 = 레이아웃 HUD 켜기/끄기
+                Row(modifier = Modifier.offset(layout.icons.left.dp, layout.icons.top.dp)) {
+                    IconButton(onClick = { EmulatorSession.pause(PauseReason.USER) }) {
+                        Icon(Icons.Filled.Pause, stringResource(R.string.emulator_paused), tint = Color.White.copy(alpha = 0.6f))
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(ICON_TOUCH_DP.dp)
+                            .combinedClickable(
+                                role = Role.Button,
+                                onLongClickLabel = stringResource(R.string.emulator_layout_hud_toggle),
+                                onLongClick = { showHud = !showHud },
+                                onClick = onSettings,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Filled.Settings, stringResource(R.string.action_settings), tint = Color.White.copy(alpha = 0.6f))
+                    }
                 }
             }
 
             if (paused) {
                 Box(
-                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).pointerInput(Unit) {
-                        detectTapGestures { EmulatorSession.resume() }
-                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.6f))
+                        .pointerInput(Unit) { detectTapGestures { EmulatorSession.resume() } }
+                        .windowInsetsPadding(WindowInsets.safeDrawing),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -537,12 +592,12 @@ private val KEYPAD_ROWS = listOf(
 )
 
 @Composable
-fun Keypad(hub: KeyInputHub, hapticsEnabled: Boolean, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+fun Keypad(hub: KeyInputHub, hapticsEnabled: Boolean, keyH: Dp, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(KEYPAD_SPACING_DP.dp)) {
         KEYPAD_ROWS.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(KEYPAD_SPACING_DP.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { (key, label) ->
-                    KeyButton(key = key, label = label, hub = hub, hapticsEnabled = hapticsEnabled, modifier = Modifier.weight(1f))
+                    KeyButton(key = key, label = label, hub = hub, hapticsEnabled = hapticsEnabled, modifier = Modifier.weight(1f).height(keyH))
                 }
             }
         }
@@ -556,7 +611,6 @@ fun KeyButton(key: String, label: String, hub: KeyInputHub, hapticsEnabled: Bool
 
     Box(
         modifier = modifier
-            .height(44.dp)
             .background(Color(0xFF404040).copy(alpha = if (pressed) 0.6f else 1f), RoundedCornerShape(8.dp))
             .pointerInput(key) {
                 detectTapGestures(

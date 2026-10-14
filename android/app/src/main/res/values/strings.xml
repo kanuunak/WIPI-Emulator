@@ -14,6 +14,7 @@
     <string name="emulator_paused">Paused</string>
     <string name="emulator_resume_hint">Tap to resume</string>
     <string name="emulator_exit">Exit game</string>
+    <string name="emulator_layout_hud_toggle">Show or hide layout info</string>
     <string name="import_failed_title">Import failed</string>
     <string name="import_read_error">Couldn\'t read the file</string>
     <string name="delete_game_title">Delete game</string>
