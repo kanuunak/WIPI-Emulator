@@ -61,6 +61,33 @@ class EmulatorLayoutTest {
     }
 
     @Test
+    fun fold5CoverMeasured() {
+        // 실측(docs/fold-retro/DEVICE_METRICS.md): 제스처 내비, safeDrawing 0,32,0,15 → 344×835dp
+        // 창은 904×2316px = 344.38×882.29dp (HUD는 반올림해 344×882로 표시)
+        val l = layout(904f / 2.625f, 2316f / 2.625f, 2.625f, top = 32f, bottom = 15f)
+        assertInvariants(l)
+        assertEquals(48f, l.keyH, eps)
+        assertClose(344f, l.game.width)
+        assertClose(459f, l.game.height)
+        assertEquals(904, l.gamePx.width)
+        assertEquals(1205, l.gamePx.height)
+    }
+
+    @Test
+    fun fold5MainMeasured() {
+        // 실측: 메인 세로 safeDrawing 0,30,0,15 → 306×408 / 메인 가로 → keyH 44, 223×297
+        val p = layout(690f, 829f, 2.625f, top = 30f, bottom = 15f)
+        assertInvariants(p)
+        assertClose(306f, p.game.width)
+        assertClose(408f, p.game.height)
+        val l = layout(829f, 690f, 2.625f, top = 30f, bottom = 15f)
+        assertInvariants(l)
+        assertEquals(44f, l.keyH, eps)
+        assertClose(223f, l.game.width)
+        assertClose(297f, l.game.height)
+    }
+
+    @Test
     fun fold5CoverDisplayZoom() {
         // 화면 확대(배율 3.0): 904×2316px → 301×772dp
         val l = layout(904f / 3f, 2316f / 3f, 3f, top = 28f, bottom = 24f)
