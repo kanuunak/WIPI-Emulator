@@ -86,35 +86,80 @@ class KeypadModelTest {
 
     // ── 누른 채 움직일 때 ──
 
-    @Test
-    fun slideWithinDpadChangesKeyOnlyPastHysteresis() {
-        val up = key("UP")
-        val ok = rect("OK")
-        // OK 사각형 위쪽 경계에서 3dp 안 → 아직 UP
-        assertEquals(up, layout.hitTestMove(up, ok.centerX, ok.top + dp(3f)))
-        // 간격 → UP 유지
-        assertEquals(up, layout.hitTestMove(up, ok.centerX, ok.top - dp(2f)))
-        // 6dp 이상 안쪽 → OK
-        assertEquals(key("OK"), layout.hitTestMove(up, ok.centerX, ok.top + dp(6.5f)))
-        // ▲에서 ▶로 (명세 §5.2.5)
-        assertEquals(key("RIGHT"), layout.hitTestMove(up, rect("RIGHT").centerX, rect("RIGHT").centerY))
+    // ── 방향키 조이스틱 (명세 §5.2.2 개정, 사용자 결정 2026-10-14) ──
+
+    private val okCx get() = rect("OK").centerX
+    private val okCy get() = rect("OK").centerY
+
+    /** 같은 손가락으로 OK 중심 기준 점(dp)들을 차례로 지나며 hitTestMove를 적용, 매 점의 키 코드를 돌려준다 */
+    private fun drag(start: String, vararg pointsDp: Pair<Float, Float>): List<String> {
+        var current = key(start)
+        return pointsDp.map { (dx, dy) ->
+            current = layout.hitTestMove(current, okCx + dp(dx), okCy + dp(dy))
+            current.code
+        }
     }
 
     @Test
-    fun jitterAroundBoundaryIsIgnored() {
-        // ◀ / OK 경계 근처에서 ±3dp 떨림: 어느 쪽에서 시작해도 바뀌지 않는다
-        val boundary = (rect("LEFT").right + rect("OK").left) / 2f
-        val y = rect("OK").centerY
-        var current = key("LEFT")
-        listOf(-3f, 3f, -2f, 4f, -4f, 5f, 0f).forEach { d ->
-            current = layout.hitTestMove(current, boundary + dp(d), y)
-            assertEquals(key("LEFT"), current)
+    fun dpadSlideIntoAnotherDirectionKey() {
+        // ▲에서 ▶로 (명세 §5.2.5)
+        assertEquals(key("RIGHT"), layout.hitTestMove(key("UP"), rect("RIGHT").centerX, rect("RIGHT").centerY))
+        assertEquals(key("DOWN"), layout.hitTestMove(key("LEFT"), rect("DOWN").centerX, rect("DOWN").centerY))
+        // 현재 키 사각형 안이면(모서리라도) 유지 — ▲ 왼쪽 아래 모서리
+        assertEquals(key("UP"), layout.hitTestMove(key("UP"), rect("UP").left + dp(1f), rect("UP").bottom - dp(1f)))
+    }
+
+    @Test
+    fun rockLeftRightAcrossCenterWithoutOk() {
+        // ◀에서 시작해 중심 근처를 좌우로 흔든다: 중심선 너머 12dp마다 ◀↔▶, OK는 한 번도 안 눌림
+        val path = drag(
+            "LEFT",
+            -40f to 0f, -11f to 0f, 11f to 0f, 13f to 0f, 30f to 0f, -11f to 0f, -13f to 0f, -30f to 0f, 13f to 0f,
+        )
+        assertEquals(listOf("LEFT", "LEFT", "LEFT", "RIGHT", "RIGHT", "RIGHT", "LEFT", "LEFT", "RIGHT"), path)
+    }
+
+    @Test
+    fun verticalWobbleWhileRockingDoesNotPressUpDown() {
+        // 좌우로 흔드는 손가락이 위아래로 ±20dp 남짓 흔들려도(OK 칸 높이 안) ▲▼로 안 바뀐다
+        val path = drag("LEFT", 0f to 20f, 20f to -20f, 0f to -22f, -20f to 22f, 5f to 26f)
+        assertEquals(listOf("LEFT", "RIGHT", "RIGHT", "LEFT", "LEFT"), path)
+    }
+
+    @Test
+    fun axisSwitchNeedsLeavingOkBand() {
+        // 좌우 → 상하: OK 칸 위/아래 경계(24dp) + 6dp를 넘고 그 축이 우세할 때
+        assertEquals(listOf("LEFT", "DOWN"), drag("LEFT", 5f to 29f, 5f to 31f))
+        assertEquals(listOf("RIGHT", "UP"), drag("RIGHT", 10f to -29f, 10f to -40f))
+        // 상하 → 좌우: OK 칸 좌우 경계(약 53dp) + 6dp
+        assertEquals(listOf("UP", "UP", "RIGHT"), drag("UP", 40f to -5f, 58f to -5f, 61f to -5f))
+        // ▲↔▼ 반전도 중심선 너머 12dp
+        assertEquals(listOf("UP", "DOWN"), drag("UP", 0f to 11f, 0f to 13f))
+    }
+
+    @Test
+    fun okIsNeverReachedBySlideAndStaysFixed() {
+        val directions = listOf("UP", "DOWN", "LEFT", "RIGHT")
+        var y = 0f
+        while (y <= layout.heightPx) {
+            var x = 0f
+            while (x <= layout.widthPx) {
+                directions.forEach { d ->
+                    val next = layout.hitTestMove(key(d), x, y)
+                    assertTrue("$d -> ${next.code} at $x,$y", next.code in directions)
+                }
+                assertEquals(key("OK"), layout.hitTestMove(key("OK"), x, y))
+                x += dp(4f)
+            }
+            y += dp(4f)
         }
-        current = key("OK")
-        listOf(3f, -3f, 2f, -4f, 4f, -5f, 0f).forEach { d ->
-            current = layout.hitTestMove(current, boundary + dp(d), y)
-            assertEquals(key("OK"), current)
-        }
+    }
+
+    @Test
+    fun jitterAroundCenterIsIgnored() {
+        // 데드존(±12dp) 안 떨림은 현재 방향 유지
+        assertEquals(List(7) { "LEFT" }, drag("LEFT", -3f to 0f, 3f to 2f, -2f to -4f, 4f to 3f, -4f to 0f, 11f to 0f, 0f to 0f))
+        assertEquals(List(7) { "RIGHT" }, drag("RIGHT", 3f to 0f, -3f to 2f, 2f to -4f, -4f to 3f, 4f to 0f, -11f to 0f, 0f to 0f))
     }
 
     @Test
@@ -125,11 +170,11 @@ class KeypadModelTest {
 
     @Test
     fun noSlideAcrossClusters() {
-        // DPAD → NUM, NUM → DPAD 금지
+        // 방향키 → 숫자·기능키 금지: 방향키는 방향으로만 바뀐다 (▼에서 2 위 = ▼, ▲에서 ▷ 위 = 오른쪽 위 대각 → ▶)
         assertEquals(key("DOWN"), layout.hitTestMove(key("DOWN"), rect("2").centerX, rect("2").centerY))
+        assertEquals(key("RIGHT"), layout.hitTestMove(key("UP"), rect("SOFT_R").centerX, rect("SOFT_R").centerY))
+        // NUM → DPAD·FUNC 금지
         assertEquals(key("2"), layout.hitTestMove(key("2"), rect("DOWN").centerX, rect("DOWN").centerY))
-        // DPAD → FUNC 금지 (▲에서 ▷ 위로 미끄러져도 ▲ 유지)
-        assertEquals(key("UP"), layout.hitTestMove(key("UP"), rect("SOFT_R").centerX, rect("SOFT_R").centerY))
         assertEquals(key("1"), layout.hitTestMove(key("1"), rect("CALL").centerX, rect("CALL").centerY))
     }
 
