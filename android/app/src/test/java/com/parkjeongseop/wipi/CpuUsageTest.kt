@@ -53,4 +53,29 @@ class CpuUsageTest {
         assertNull(CpuUsage.percent(10, 5, 0, 1_000, 100)) // 틱 감소
         assertNull(CpuUsage.percent(0, 10, 0, 1_000, 0))
     }
+
+    @Test
+    fun parsesThreadName() {
+        assertEquals("ePARK.foldretro", CpuUsage.parseName(stat))
+        assertEquals("wie emu (x) ", CpuUsage.parseName(stat.replace("(ePARK.foldretro)", "(wie emu (x) )")))
+        assertNull(CpuUsage.parseName("no parens"))
+    }
+
+    @Test
+    fun topThreadsMergesNamesAndSkipsNewThreads() {
+        fun t(name: String, ticks: Long) = CpuUsage.ThreadTicks(name, ticks)
+        val prev = mapOf(1 to t("main", 100), 2 to t("wie-emulator", 1000), 3 to t("AudioTrack", 10), 4 to t("AudioTrack", 20))
+        val cur = mapOf(
+            1 to t("main", 110), // 10틱
+            2 to t("wie-emulator", 1040), // 40틱
+            3 to t("AudioTrack", 25), // 15틱
+            4 to t("AudioTrack", 35), // 15틱 → 이름이 같아 합쳐서 30
+            5 to t("new", 500), // 이전 표본에 없음 → 건너뜀
+        )
+        val top = CpuUsage.topThreads(prev, cur, dWallMs = 1_000, ticksPerSecond = 100, n = 2)
+        assertEquals(listOf("wie-emulator", "AudioTrack"), top.map { it.first })
+        assertEquals(40f, top[0].second, 0.001f)
+        assertEquals(30f, top[1].second, 0.001f)
+        assertEquals(emptyList<Pair<String, Float>>(), CpuUsage.topThreads(prev, cur, 0, 100, 2))
+    }
 }

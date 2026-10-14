@@ -1,5 +1,8 @@
-// 진단 로그: 마지막 게임·오류·CPU 측정값을 기록해 두고(SharedPreferences — 앱이 죽어도 남는다), 공유할 때
-// 앱·기기 정보와 자기 프로세스 logcat을 붙여 텍스트 파일 하나로 만든다. 공유는 FileProvider(androidx.core) 경유.
+// 진단 로그: 마지막 게임·오류·CPU 측정값을 기록해 두고(SharedPreferences — 앱이 죽어도 남는다), 내보낼 때
+// 앱·기기 정보와 자기 프로세스 logcat을 붙여 텍스트 하나로 만든다. 내보내기는 두 가지:
+// - 파일로 저장: 사용자가 고른 위치(SAF CreateDocument, 예: 다운로드)에 쓴다 — 기기에 남는 유일한 방법.
+// - 공유: cacheDir 임시 파일을 FileProvider(androidx.core)로 첨부 + 요약(logcat 제외)을 본문 텍스트로.
+//   메신저·메모 앱 상당수는 text/plain 공유에서 첨부(EXTRA_STREAM)를 무시하고 본문(EXTRA_TEXT)만 읽는다.
 // 로그 레벨은 바꾸지 않는다 — 평소에 남는 로그(info 이상)만 담긴다.
 
 package com.parkjeongseop.wipi
@@ -14,6 +17,7 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import java.io.File
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -54,41 +58,59 @@ object Diagnostics {
     }
 
     /** 레이아웃 HUD가 1초마다 잰 CPU 사용률(코어 하나 = 100%) */
-    fun recordCpu(percent: Float, paused: Boolean) {
+    fun recordCpu(percent: Float, threads: String, paused: Boolean) {
         prefs?.edit {
             putFloat("cpu_percent", percent)
+            putString("cpu_threads", threads)
             putBoolean("cpu_paused", paused)
             putString("cpu_game", EmulatorSession.activeGame?.name)
             putLong("cpu_at", System.currentTimeMillis())
         }
     }
 
-    /** 보고서를 cacheDir/diagnostics/에 쓰고 파일을 돌려준다. logcat을 읽으므로 백그라운드 스레드에서 부른다. */
-    fun writeReport(context: Context): File {
-        val dir = File(context.cacheDir, DIR).apply { mkdirs() }
-        dir.listFiles()?.forEach { it.delete() } // 이전 보고서는 남기지 않는다
-        val file = File(dir, "fold-retro-diagnostics-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(Date())}.txt")
-        file.writeText(buildReport(context))
-        return file
+    /** 저장·공유 파일 이름 (시각 포함) */
+    fun fileName(): String = "fold-retro-diagnostics-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(Date())}.txt"
+
+    /** 전체 보고서(요약 + logcat)를 [out]에 쓴다(파일로 저장). logcat을 읽으므로 백그라운드 스레드에서 부른다. */
+    fun writeReport(context: Context, out: OutputStream) {
+        out.bufferedWriter().use { it.write(summary(context) + logcatSection()) }
     }
 
-    /** 공유 시트(chooser) Intent. 받는 앱에 이 파일 하나만 읽기 권한을 준다. */
-    fun shareIntent(context: Context, file: File, title: String): Intent {
+    /** 공유용: 전체 보고서를 cacheDir/diagnostics/에 쓰고 파일과 요약을 돌려준다. 백그라운드 스레드에서 부른다. */
+    fun writeShareFile(context: Context): Pair<File, String> {
+        val dir = File(context.cacheDir, DIR).apply { mkdirs() }
+        dir.listFiles()?.forEach { it.delete() } // 이전 보고서는 남기지 않는다
+        val file = File(dir, fileName())
+        val summary = summary(context)
+        file.writeText(summary + logcatSection())
+        return file to summary
+    }
+
+    /**
+     * 공유 시트(chooser) Intent. 첨부 = 전체 파일(받는 앱에 이 파일 하나만 읽기 권한), 본문 = 요약.
+     * 요약은 logcat을 빼서 작다(수 KB — Binder 한도 걱정 없음).
+     */
+    fun shareIntent(context: Context, file: File, summary: String, title: String): Intent {
         val uri = FileProvider.getUriForFile(context, authority(context), file)
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, file.name)
+            putExtra(Intent.EXTRA_TEXT, summary.take(SUMMARY_TEXT_MAX))
             clipData = ClipData.newRawUri(file.name, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         return Intent.createChooser(send, title)
     }
 
+    /** 공유 본문 최대 길이(문자). 오류 원문(레지스터·스택 포함)이 들어가는 크기. */
+    private const val SUMMARY_TEXT_MAX = 16_000
+
     private fun time(ms: Long): String =
         if (ms <= 0L) "-" else SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.ROOT).format(Date(ms))
 
-    private fun buildReport(context: Context): String = buildString {
+    /** logcat을 뺀 보고서(공유 본문에도 쓰인다) */
+    private fun summary(context: Context): String = buildString {
         val p = prefs
         fun line(key: String, value: Any?) = appendLine("$key: ${value ?: "-"}")
 
@@ -125,6 +147,7 @@ object Diagnostics {
         appendLine("\n== Last CPU (layout HUD, 1 core = 100%) ==")
         if (p?.contains("cpu_percent") == true) {
             line("cpu", "%.1f%%".format(Locale.ROOT, p.getFloat("cpu_percent", 0f)) + if (p.getBoolean("cpu_paused", false)) " (paused)" else "")
+            line("top threads", p.getString("cpu_threads", null))
             line("game", p.getString("cpu_game", null))
             line("measured", time(p.getLong("cpu_at", 0L)))
         } else {
@@ -142,9 +165,10 @@ object Diagnostics {
             appendLine("(none)")
         }
 
-        appendLine("\n== logcat (this process, last $LOGCAT_LINES lines) ==")
-        append(readLogcat())
+        appendLine("\n(full log with logcat: attached file / saved file)")
     }
+
+    private fun logcatSection(): String = "\n== logcat (this process, last $LOGCAT_LINES lines) ==\n" + readLogcat()
 
     /** 자기 프로세스 로그만(--pid). 앱은 자기 로그를 권한 없이 읽을 수 있다. 실패하면 이유를 적는다. */
     private fun readLogcat(): String = try {

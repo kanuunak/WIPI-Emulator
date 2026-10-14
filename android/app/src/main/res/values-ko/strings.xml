@@ -55,8 +55,13 @@
     <string name="error_previous_stuck">이전 게임이 응답하지 않아 새 게임을 시작할 수 없어요. 앱을 종료한 뒤 다시 열어 주세요.</string>
     <string name="action_close">닫기</string>
     <string name="action_close_app">앱 종료</string>
-    <string name="action_share_log">로그 공유</string>
-    <string name="settings_share_diagnostics">진단 로그 공유</string>
-    <string name="settings_share_diagnostics_desc">문제 제보용 — 앱·기기 정보, 마지막 오류, 앱 로그</string>
-    <string name="diag_share_failed">진단 로그를 만들지 못했어요</string>
+    <string name="action_diag_log">진단 로그</string>
+    <string name="action_save_file">파일로 저장</string>
+    <string name="action_share">공유</string>
+    <string name="settings_diag_log">진단 로그 저장·공유</string>
+    <string name="settings_diag_log_desc">문제 제보용 — 앱·기기 정보, 마지막 오류, 앱 로그</string>
+    <string name="diag_dialog_title">진단 로그</string>
+    <string name="diag_dialog_message">파일로 저장: 고른 폴더(예: 다운로드)에 남아요.\n공유: 다른 앱으로 바로 보내요. 메시지에는 요약이 들어가고, 전체 로그는 첨부를 받는 앱에만 파일로 붙어요.</string>
+    <string name="diag_saved">진단 로그를 저장했어요</string>
+    <string name="diag_failed">진단 로그를 만들지 못했어요</string>
 </resources>

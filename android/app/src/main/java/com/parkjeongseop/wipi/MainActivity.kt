@@ -137,6 +137,7 @@ class MainActivity : ComponentActivity() {
         var games by remember { mutableStateOf(library.list()) }
         var errorMessage by remember { mutableStateOf<UiError?>(null) }
         var showSettings by remember { mutableStateOf(false) } // iOS sheet 대응 오버레이
+        var showDiagnostics by remember { mutableStateOf(false) } // 진단 로그: 파일로 저장 / 공유 선택
 
         Box(modifier = Modifier.fillMaxSize()) {
             if (EmulatorSession.activeGame == null) {
@@ -171,7 +172,7 @@ class MainActivity : ComponentActivity() {
                         games = library.list()
                     },
                     onSettings = { showSettings = true },
-                    onShareLog = ::shareDiagnostics,
+                    onDiagnostics = { showDiagnostics = true },
                     onCloseApp = ::closeApp,
                 )
             } else {
@@ -190,10 +191,24 @@ class MainActivity : ComponentActivity() {
                 SettingsFlow(
                     settings = settings,
                     onVolumeChanged = { EmulatorSession.applyVolume() }, // 일시정지 중이면 0 유지
-                    onShareDiagnostics = ::shareDiagnostics,
+                    onDiagnostics = { showDiagnostics = true },
                     onClose = { showSettings = false },
                 )
             }
+        }
+
+        if (showDiagnostics) {
+            DiagnosticsDialog(
+                onSave = {
+                    showDiagnostics = false
+                    saveDiagnostics.launch(Diagnostics.fileName())
+                },
+                onShare = {
+                    showDiagnostics = false
+                    shareDiagnostics()
+                },
+                onDismiss = { showDiagnostics = false },
+            )
         }
     }
 
@@ -208,21 +223,37 @@ class MainActivity : ComponentActivity() {
         return UiError(message, detail)
     }
 
-    private var sharingDiagnostics = false
+    private var exportingDiagnostics = false
 
-    /** 진단 로그 파일을 만들어(logcat 읽기 — 백그라운드) 공유 시트로 넘긴다 */
-    private fun shareDiagnostics() {
-        if (sharingDiagnostics) return
-        sharingDiagnostics = true
+    /** 파일로 저장: 사용자가 고른 위치(예: 다운로드)에 전체 보고서를 쓴다. 권한 필요 없음(SAF). */
+    private val saveDiagnostics = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri == null) return@registerForActivityResult
+        exportDiagnostics("save") {
+            withContext(Dispatchers.IO) {
+                contentResolver.openOutputStream(uri)?.use { Diagnostics.writeReport(this@MainActivity, it) }
+                    ?: error("openOutputStream returned null")
+            }
+            Toast.makeText(this@MainActivity, R.string.diag_saved, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 공유: 보고서 파일(logcat 읽기 — 백그라운드)을 첨부 + 요약을 본문으로 공유 시트에 넘긴다 */
+    private fun shareDiagnostics() = exportDiagnostics("share") {
+        val (file, summary) = withContext(Dispatchers.IO) { Diagnostics.writeShareFile(this@MainActivity) }
+        startActivity(Diagnostics.shareIntent(this@MainActivity, file, summary, getString(R.string.diag_dialog_title)))
+    }
+
+    private fun exportDiagnostics(what: String, block: suspend () -> Unit) {
+        if (exportingDiagnostics) return
+        exportingDiagnostics = true
         lifecycleScope.launch {
             try {
-                val file = withContext(Dispatchers.IO) { Diagnostics.writeReport(this@MainActivity) }
-                startActivity(Diagnostics.shareIntent(this@MainActivity, file, getString(R.string.settings_share_diagnostics)))
+                block()
             } catch (e: Exception) {
-                Log.w(LOG_TAG, "diagnostics share failed", e)
-                Toast.makeText(this@MainActivity, R.string.diag_share_failed, Toast.LENGTH_SHORT).show()
+                Log.w(LOG_TAG, "diagnostics $what failed", e)
+                Toast.makeText(this@MainActivity, R.string.diag_failed, Toast.LENGTH_SHORT).show()
             } finally {
-                sharingDiagnostics = false
+                exportingDiagnostics = false
             }
         }
     }
@@ -419,19 +450,24 @@ class MainActivity : ComponentActivity() {
         val hasFrame by remember { derivedStateOf { EmulatorSession.frameVersion > 0 } }
         var showHud by rememberSaveable { mutableStateOf(false) } // 레이아웃 HUD, 기본 꺼짐
 
-        // 앱 CPU 사용률: HUD가 켜져 있을 때만 1초마다 /proc/self/stat을 읽는다(발열 확인용, 코어 하나 = 100%)
-        var cpuLine by remember { mutableStateOf<String?>(null) }
+        // 앱 CPU 사용률: HUD가 켜져 있을 때만 1초마다 /proc/self/stat·task/*/stat을 읽는다(발열 확인용, 코어 하나 = 100%).
+        // 둘째 줄 = 많이 쓰는 스레드(wie-emulator = 에뮬, RenderThread·main = 화면, 그 외 오디오 등)
+        var cpuLines by remember { mutableStateOf<List<String>>(emptyList()) }
         if (showHud) {
             LaunchedEffect(Unit) {
                 val sampler = CpuUsage.Sampler()
                 val cores = Runtime.getRuntime().availableProcessors()
-                cpuLine = "cpu …"
+                cpuLines = listOf("cpu …")
                 while (isActive) {
-                    val percent = withContext(Dispatchers.IO) { sampler.sample() }
-                    if (percent != null) {
+                    val sample = withContext(Dispatchers.IO) { sampler.sample() }
+                    if (sample != null) {
                         val paused = EmulatorSession.paused
-                        cpuLine = "cpu ${"%.1f".format(Locale.ROOT, percent)}% (1 core=100%, ${cores}c)" + if (paused) " paused" else ""
-                        Diagnostics.recordCpu(percent, paused)
+                        val threads = sample.threads.joinToString(" ") { (name, p) -> "$name ${p.roundToInt()}" }
+                        cpuLines = listOf(
+                            "cpu ${"%.1f".format(Locale.ROOT, sample.total)}% (1 core=100%, ${cores}c)" + if (paused) " paused" else "",
+                            " $threads",
+                        )
+                        Diagnostics.recordCpu(sample.total, threads, paused)
                     }
                     delay(1000)
                 }
@@ -480,7 +516,7 @@ class MainActivity : ComponentActivity() {
                         .size(layout.keypad.width.dp, layout.keypad.height.dp),
                 )
 
-                if (showHud) LayoutHud(metrics, InputTrace.lines, cpuLine)
+                if (showHud) LayoutHud(metrics, InputTrace.lines, cpuLines)
 
                 // 게임 우상단(안전 영역 안): 일시정지 + 설정. ⚙ 길게 누르기 = 레이아웃 HUD 켜기/끄기
                 Row(modifier = Modifier.offset(layout.icons.left.dp, layout.icons.top.dp)) {
@@ -541,7 +577,7 @@ class MainActivity : ComponentActivity() {
         onImport: (Uri) -> Boolean,
         onDelete: (GameEntry) -> Unit,
         onSettings: () -> Unit,
-        onShareLog: () -> Unit,
+        onDiagnostics: () -> Unit,
         onCloseApp: () -> Unit,
     ) {
         // 오류 배너가 떠 있으면 뒤로가기는 배너부터 닫는다(앱이 백그라운드로 가면 다시 열어도 배너가 그대로 남아 있었다)
@@ -638,7 +674,7 @@ class MainActivity : ComponentActivity() {
 
                 // 실행 에러: 하단 배너(탭·닫기·뒤로가기로 닫힘). 원문은 앞 몇 줄만 — 레지스터·스택 덤프까지 넣으면
                 // 배너가 화면 전체를 덮어 앱이 멈춘 것처럼 보였다. 전체 원문은 [로그 공유]의 진단 로그에 들어간다.
-                error?.let { ErrorBanner(it, onDismissError, onShareLog, onCloseApp, Modifier.align(Alignment.BottomCenter)) }
+                error?.let { ErrorBanner(it, onDismissError, onDiagnostics, onCloseApp, Modifier.align(Alignment.BottomCenter)) }
             }
         }
 
@@ -677,7 +713,7 @@ data class UiError(val message: String, val detail: String? = null, val offerClo
 private const val ERROR_DETAIL_LINES = 3
 
 @Composable
-private fun ErrorBanner(error: UiError, onDismiss: () -> Unit, onShareLog: () -> Unit, onCloseApp: () -> Unit, modifier: Modifier = Modifier) {
+private fun ErrorBanner(error: UiError, onDismiss: () -> Unit, onDiagnostics: () -> Unit, onCloseApp: () -> Unit, modifier: Modifier = Modifier) {
     val color = MaterialTheme.colorScheme.onErrorContainer
     Column(
         modifier = modifier
@@ -703,8 +739,25 @@ private fun ErrorBanner(error: UiError, onDismiss: () -> Unit, onShareLog: () ->
             if (error.offerCloseApp) {
                 TextButton(onClick = onCloseApp) { Text(stringResource(R.string.action_close_app), color = color) }
             }
-            TextButton(onClick = onShareLog) { Text(stringResource(R.string.action_share_log), color = color) }
+            TextButton(onClick = onDiagnostics) { Text(stringResource(R.string.action_diag_log), color = color) }
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close), color = color) }
         }
     }
+}
+
+/** 진단 로그 내보내기 방법 선택. 공유만으로는 기기에 남지 않는다(받는 앱이 첨부를 무시하면 본문 요약만 간다). */
+@Composable
+private fun DiagnosticsDialog(onSave: () -> Unit, onShare: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.diag_dialog_title)) },
+        text = { Text(stringResource(R.string.diag_dialog_message)) },
+        confirmButton = {
+            Row {
+                TextButton(onClick = onShare) { Text(stringResource(R.string.action_share)) }
+                TextButton(onClick = onSave) { Text(stringResource(R.string.action_save_file)) }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }

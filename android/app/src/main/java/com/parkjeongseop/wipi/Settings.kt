@@ -81,7 +81,7 @@ class Settings(context: Context) {
 private enum class SettingsPage { Settings, Licenses }
 
 @Composable
-fun SettingsFlow(settings: Settings, onVolumeChanged: () -> Unit, onShareDiagnostics: () -> Unit, onClose: () -> Unit) {
+fun SettingsFlow(settings: Settings, onVolumeChanged: () -> Unit, onDiagnostics: () -> Unit, onClose: () -> Unit) {
     var page by remember { mutableStateOf(SettingsPage.Settings) }
     var detail by remember { mutableStateOf<License?>(null) }
 
@@ -102,7 +102,7 @@ fun SettingsFlow(settings: Settings, onVolumeChanged: () -> Unit, onShareDiagnos
         else -> SettingsPage(
             settings = settings,
             onVolumeChanged = onVolumeChanged,
-            onShareDiagnostics = onShareDiagnostics,
+            onDiagnostics = onDiagnostics,
             onShowLicenses = { page = SettingsPage.Licenses },
             onBack = onClose,
         )
@@ -141,7 +141,7 @@ private fun CategoryHeader(title: String) {
 private fun SettingsPage(
     settings: Settings,
     onVolumeChanged: () -> Unit,
-    onShareDiagnostics: () -> Unit,
+    onDiagnostics: () -> Unit,
     onShowLicenses: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -249,10 +249,10 @@ private fun SettingsPage(
                 modifier = Modifier.clickable(onClick = onShowLicenses),
             )
             ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_share_diagnostics)) },
-                supportingContent = { Text(stringResource(R.string.settings_share_diagnostics_desc)) },
+                headlineContent = { Text(stringResource(R.string.settings_diag_log)) },
+                supportingContent = { Text(stringResource(R.string.settings_diag_log_desc)) },
                 leadingContent = { Icon(Icons.Filled.Share, null) },
-                modifier = Modifier.clickable(onClick = onShareDiagnostics),
+                modifier = Modifier.clickable(onClick = onDiagnostics),
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_version)) },
