@@ -1,6 +1,5 @@
 package com.parkjeongseop.wipi
 
-import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.view.InputDevice
@@ -59,11 +58,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,20 +76,18 @@ const val SCREEN_WIDTH = 240
 const val SCREEN_HEIGHT = 320
 const val SOUNDFONT_NAME = "GeneralUser-GS.sf2"
 
-private enum class Screen { Library, Emulator }
-
 class MainActivity : ComponentActivity() {
     private lateinit var library: GameLibrary
     private lateinit var settings: Settings
     private lateinit var haptics: Haptics
 
-    /** 에뮬 화면에서만 하드웨어 키를 게임으로 전달 */
-    private var emulatorActive = false
+    /** 에뮬 화면에서만 하드웨어 키를 게임으로 전달 (화면 = 세션 유무에서 파생) */
+    private val emulatorActive: Boolean get() = EmulatorSession.activeGame != null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        WipiNative.init(this)
+        EmulatorSession.init(this)
         library = GameLibrary(this)
         settings = Settings(this)
         haptics = Haptics(this)
@@ -104,29 +101,25 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        WipiNative.nativeStop()
+        // 구성 변경(접기·펴기 등)이나 시스템의 Activity 파괴에서는 세션을 유지한다 — 이미 ON_PAUSE에서 일시정지·음소거됨
+        if (isFinishing && !isChangingConfigurations) EmulatorSession.stop()
     }
 
     @Composable
     private fun WipiApp() {
-        var screen by remember { mutableStateOf(Screen.Library) }
         var games by remember { mutableStateOf(library.list()) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
         var showSettings by remember { mutableStateOf(false) } // iOS sheet 대응 오버레이
 
-        emulatorActive = screen == Screen.Emulator
-
         Box(modifier = Modifier.fillMaxSize()) {
-            when (screen) {
-                Screen.Library -> LibraryScreen(
+            if (EmulatorSession.activeGame == null) {
+                LibraryScreen(
                     games = games,
                     error = errorMessage,
                     onDismissError = { errorMessage = null },
                     onPlay = { entry ->
-                        entry.dataDir.mkdirs()
-                        if (start(entry.gameFile.readBytes(), entry.filename, entry.dataDir)) {
+                        if (EmulatorSession.start(entry, soundfontPath())) {
                             errorMessage = null
-                            screen = Screen.Emulator
                         } else {
                             // 동기 실패는 형식 문제가 아니라 시작 자체 실패 (형식 오류는 로드 후 kind로 안내됨)
                             errorMessage = pendingError() ?: getString(R.string.error_start_failed)
@@ -143,17 +136,13 @@ class MainActivity : ComponentActivity() {
                     },
                     onSettings = { showSettings = true },
                 )
-
-                Screen.Emulator -> EmulatorScreen(
+            } else {
+                EmulatorScreen(
                     onError = { message ->
                         errorMessage = message
-                        WipiNative.nativeStop()
-                        screen = Screen.Library
+                        EmulatorSession.stop()
                     },
-                    onExit = {
-                        WipiNative.nativeStop()
-                        screen = Screen.Library
-                    },
+                    onExit = { EmulatorSession.stop() },
                     onSettings = { showSettings = true },
                 )
             }
@@ -162,10 +151,7 @@ class MainActivity : ComponentActivity() {
             if (showSettings) {
                 SettingsFlow(
                     settings = settings,
-                    onVolumeChanged = {
-                    val (pcm, midi) = settings.effectiveVolumes()
-                    WipiNative.nativeSetVolume(pcm, midi)
-                },
+                    onVolumeChanged = { EmulatorSession.applyVolume() }, // 일시정지 중이면 0 유지
                     onClose = { showSettings = false },
                 )
             }
@@ -174,22 +160,11 @@ class MainActivity : ComponentActivity() {
 
     /** 보류 중 오류를 사용자 안내 문구 + 진단 원문으로 변환 (없으면 null). iOS WipiCore.describeError와 동일 카피. */
     private fun pendingError(): String? {
-        val kind = IntArray(1)
-        val detail = WipiNative.nativeGetError(kind) ?: return null
-        return when (kind[0]) {
+        val (kind, detail) = EmulatorSession.takeError() ?: return null
+        return when (kind) {
             0 -> getString(R.string.error_load_failed, detail)
             else -> getString(R.string.error_runtime, detail)
         }
-    }
-
-    /** 게임 로드 및 에뮬레이터 시작 + 사운드 설정 적용 */
-    private fun start(bytes: ByteArray, filename: String, dataDir: File): Boolean {
-        val ok = WipiNative.nativeStart(bytes, filename, dataDir.absolutePath, soundfontPath())
-        if (ok) {
-            val (pcm, midi) = settings.effectiveVolumes()
-            WipiNative.nativeSetVolume(pcm, midi)
-        }
-        return ok
     }
 
     /** assets의 사운드폰트를 filesDir로 복사하고 경로 반환 (실패 시 빈 문자열 → MIDI 무음) */
@@ -253,20 +228,18 @@ class MainActivity : ComponentActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (!emulatorActive) return super.onKeyDown(keyCode, event)
         val key = hardwareKeyMap[keyCode] ?: return super.onKeyDown(keyCode, event)
-        if (event.repeatCount == 0) WipiNative.nativeKeyDown(key) // 키 반복은 Rust 쪽에서 처리
+        if (event.repeatCount == 0) EmulatorSession.hub.press("hw:$keyCode", key) // 키 반복은 Rust 쪽에서 처리
         return true
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (!emulatorActive) return super.onKeyUp(keyCode, event)
-        val key = hardwareKeyMap[keyCode] ?: return super.onKeyUp(keyCode, event)
-        WipiNative.nativeKeyUp(key)
+        if (keyCode !in hardwareKeyMap) return super.onKeyUp(keyCode, event)
+        EmulatorSession.hub.release("hw:$keyCode")
         return true
     }
 
     /** 게임패드 왼쪽 스틱 → 방향키 (iOS GCController leftThumbstick 매핑과 동일, 임계값 0.5) */
-    private val stickPressed = mutableSetOf<String>()
-
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
         if (!emulatorActive || event.source and InputDevice.SOURCE_JOYSTICK == 0) {
             return super.onGenericMotionEvent(event)
@@ -275,14 +248,12 @@ class MainActivity : ComponentActivity() {
         val x = event.getAxisValue(MotionEvent.AXIS_X)
         val y = event.getAxisValue(MotionEvent.AXIS_Y)
 
+        // 방향마다 source 하나. 일시정지 등으로 releaseAll된 뒤에는 허브가 모르는 source라 다시 기울이면 새로 눌린다
+        val hub = EmulatorSession.hub
         fun update(key: String, active: Boolean) {
-            if (active && key !in stickPressed) {
-                stickPressed += key
-                WipiNative.nativeKeyDown(key)
-            } else if (!active && key in stickPressed) {
-                stickPressed -= key
-                WipiNative.nativeKeyUp(key)
-            }
+            val source = "stick:$key"
+            if (active && !hub.holds(source)) hub.press(source, key)
+            else if (!active) hub.release(source)
         }
         update("LEFT", x < -0.5f)
         update("RIGHT", x > 0.5f)
@@ -295,20 +266,23 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun EmulatorScreen(onError: (String) -> Unit, onExit: () -> Unit, onSettings: () -> Unit) {
-        val bitmap = remember { Bitmap.createBitmap(SCREEN_WIDTH, SCREEN_HEIGHT, Bitmap.Config.ARGB_8888) }
-        val pixels = remember { IntArray(SCREEN_WIDTH * SCREEN_HEIGHT) }
         val vibrateOut = remember { LongArray(2) }
-        var frame by remember { mutableStateOf<ImageBitmap?>(null) }
-        var paused by remember { mutableStateOf(false) }
+        val paused = EmulatorSession.paused
+        // 프레임·일시정지 상태는 EmulatorSession(프로세스 수명)에 있어 Activity 재생성 뒤에도 마지막 프레임을 바로 그린다
+        val frameVersion = EmulatorSession.frameVersion
+        val frame = remember(frameVersion) {
+            if (frameVersion > 0) EmulatorSession.frameBitmap.asImageBitmap().also { it.prepareToDraw() } else null
+        }
 
         // 시스템 뒤로가기: 실수 종료 방지를 위해 먼저 일시정지 메뉴, 일시정지 중 다시 누르면 종료 (에뮬 표준 패턴)
         BackHandler {
-            if (paused) {
-                onExit()
-            } else {
-                paused = true
-                WipiNative.nativeSetPaused(true)
-            }
+            if (paused) onExit() else EmulatorSession.pause(PauseReason.USER)
+        }
+
+        // 창 포커스 상실(알림창 내림 등): 눌린 키만 전부 해제 (일시정지는 ON_PAUSE가 담당)
+        val windowFocused = LocalWindowInfo.current.isWindowFocused
+        LaunchedEffect(windowFocused) {
+            if (!windowFocused) EmulatorSession.hub.releaseAll()
         }
 
         // 게임 중 화면 자동꺼짐 방지
@@ -322,10 +296,7 @@ class MainActivity : ComponentActivity() {
         val lifecycleOwner = LocalLifecycleOwner.current
         DisposableEffect(lifecycleOwner) {
             val observer = LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_PAUSE && !paused) {
-                    paused = true
-                    WipiNative.nativeSetPaused(true)
-                }
+                if (event == Lifecycle.Event.ON_PAUSE) EmulatorSession.pause(PauseReason.SYSTEM)
             }
             lifecycleOwner.lifecycle.addObserver(observer)
             onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -333,15 +304,12 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(Unit) {
             while (isActive) {
-                if (WipiNative.nativeGetFrame(pixels)) {
-                    bitmap.setPixels(pixels, 0, SCREEN_WIDTH, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
-                    frame = bitmap.asImageBitmap().also { it.prepareToDraw() }
-                }
+                EmulatorSession.pollFrame()
                 // enabled가 아니어도 요청은 소비해야 큐가 쌓이지 않는다
-                if (WipiNative.nativePollVibrate(vibrateOut) && settings.vibrationEnabled) {
+                if (EmulatorSession.pollVibrate(vibrateOut) && settings.vibrationEnabled) {
                     haptics.play(vibrateOut[0], vibrateOut[1].toInt(), settings.vibrationScale)
                 }
-                if (WipiNative.nativePollExit()) {
+                if (EmulatorSession.pollExit()) {
                     onExit()
                     break
                 }
@@ -371,17 +339,12 @@ class MainActivity : ComponentActivity() {
                     } ?: Text(stringResource(R.string.emulator_loading), color = Color.White)
                 }
 
-                Keypad(hapticsEnabled = settings.keypadHaptics, modifier = Modifier.fillMaxWidth().padding(8.dp))
+                Keypad(hub = EmulatorSession.hub, hapticsEnabled = settings.keypadHaptics, modifier = Modifier.fillMaxWidth().padding(8.dp))
             }
 
             // 우상단: 일시정지 + 설정 (iOS와 동일 구성)
             Row(modifier = Modifier.align(Alignment.TopEnd)) {
-                IconButton(onClick = {
-                    if (!paused) {
-                        paused = true
-                        WipiNative.nativeSetPaused(true)
-                    }
-                }) {
+                IconButton(onClick = { EmulatorSession.pause(PauseReason.USER) }) {
                     Icon(Icons.Filled.Pause, stringResource(R.string.emulator_paused), tint = Color.White.copy(alpha = 0.6f))
                 }
                 IconButton(onClick = onSettings) {
@@ -392,10 +355,7 @@ class MainActivity : ComponentActivity() {
             if (paused) {
                 Box(
                     modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).pointerInput(Unit) {
-                        detectTapGestures {
-                            paused = false
-                            WipiNative.nativeSetPaused(false)
-                        }
+                        detectTapGestures { EmulatorSession.resume() }
                     },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -577,12 +537,12 @@ private val KEYPAD_ROWS = listOf(
 )
 
 @Composable
-fun Keypad(hapticsEnabled: Boolean, modifier: Modifier = Modifier) {
+fun Keypad(hub: KeyInputHub, hapticsEnabled: Boolean, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         KEYPAD_ROWS.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { (key, label) ->
-                    KeyButton(key = key, label = label, hapticsEnabled = hapticsEnabled, modifier = Modifier.weight(1f))
+                    KeyButton(key = key, label = label, hub = hub, hapticsEnabled = hapticsEnabled, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -590,7 +550,7 @@ fun Keypad(hapticsEnabled: Boolean, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun KeyButton(key: String, label: String, hapticsEnabled: Boolean, modifier: Modifier = Modifier) {
+fun KeyButton(key: String, label: String, hub: KeyInputHub, hapticsEnabled: Boolean, modifier: Modifier = Modifier) {
     var pressed by remember { mutableStateOf(false) }
     val view = androidx.compose.ui.platform.LocalView.current
 
@@ -604,12 +564,13 @@ fun KeyButton(key: String, label: String, hapticsEnabled: Boolean, modifier: Mod
                         pressed = true
                         // 키 다운 시 가벼운 탭 — 하드웨어 키/게임패드에는 적용하지 않음 (물리 피드백 존재)
                         if (hapticsEnabled) view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-                        WipiNative.nativeKeyDown(key)
+                        // 허브 경유: 다른 source(하드웨어 키 등)와 참조 카운트, 최소 누름 시간, 일시정지 시 일괄 해제
+                        hub.press("touchkey:$key", key)
                         try {
                             awaitRelease()
                         } finally {
                             pressed = false
-                            WipiNative.nativeKeyUp(key)
+                            hub.release("touchkey:$key")
                         }
                     },
                 )
