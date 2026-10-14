@@ -1,15 +1,14 @@
-# Phase 3 인계 메모 (2026-10-14)
+# Phase 3 인계 메모 (2026-10-14, Phase 3.5 결과 반영)
 
 다음 세션은 이 문서부터 읽는다. 명세·가이드보다 이 문서가 최신이다(충돌하면 이 문서 우선, 명세는 이미 개정 반영).
 
-## 1. 열린 PR
+## 1. PR
 
-| PR | 브랜치 | 내용 | 마지막 빌드 |
+| PR | 브랜치 | 내용 | 상태 |
 |---|---|---|---|
-| #4 | `claude/busy-volta-9tfvaj` | Phase 3: KeypadModel·TouchKeypad, 방향키 조이스틱, 입력 진단 HUD, 키패드 햅틱(EFFECT_CLICK), 일시정지 중 폴링 감속, 매 프레임 재구성 제거 | Debug 12 |
-| #5 | `claude/busy-volta-9tfvaj-heat` | `rust/wipi_core/src/session.rs` tick 사이 최소 1ms sleep (발열, CPU 100%→12%, 사용자 승인 예외) | Debug 13 |
-
-두 PR은 서로 독립(`fold-retro`에서 분기). 머지 순서 무관, 충돌 없음(#4는 Kotlin·문서, #5는 Rust·AGENTS.md 한 줄 — AGENTS.md 같은 파일이지만 다른 줄).
+| #4 | `claude/busy-volta-9tfvaj` | Phase 3: KeypadModel·TouchKeypad, 방향키 조이스틱, 입력 진단 HUD, 키패드 햅틱(EFFECT_CLICK), 일시정지 중 폴링 감속, 매 프레임 재구성 제거 | 머지됨 |
+| #5 | `claude/busy-volta-9tfvaj-heat` | `rust/wipi_core/src/session.rs` tick 사이 최소 1ms sleep (발열, CPU 100%→12%, 사용자 승인 예외) | 머지됨 |
+| Phase 3.5 | `ccr-949c1a62-b432ix` | 진단 로그 공유, HUD CPU %, 정지 비동기화, 오류 배너 수정 (§5) | PR 참고 |
 
 ## 2. 이번 세션에서 바뀐 결정
 
@@ -22,9 +21,17 @@
 
 통과(Debug 10): KeyTest 판정표 a(21키 탭) b(OK 1초 → R 8~10) d(같은 키 두 손가락) e(4+5 동시) f(5 연타 10초) g(키 누른 채 홈) h(알림창) i(접기).
 
-미확인 — 사용자가 진행 예정:
-- Debug 12: c(▲→▶ 슬라이드), j(FUNC 고정), k(전부 뗀 뒤 HELD:0), l(◀ 누른 채 중심 근처 좌우 흔들기 → ◀▶ 번갈아, OK 없음), m(OK 누른 채 이동 → OK 유지), 키패드 햅틱 체감, **진단 스크린샷**.
-- Debug 13: 발열 체감(같은 게임 10분, Debug 12와 비교), 게임 속도·키 반응 동일한지.
+통과(Debug 12): **키패드 판정표 전 항목**(c 슬라이드, j FUNC 고정, k HELD:0, l·m 조이스틱 포함).
+
+발열(Debug 13, #5): 체감으로는 구분이 어려웠다 → Phase 3.5에서 HUD에 앱 CPU %를 넣었다(아래). 숫자로 다시 확인.
+
+입력 진단 스크린샷(§4): 아직 없음 → §4 조사는 열린 채로 둔다.
+
+Phase 3.5 빌드에서 사용자 확인 필요(§7.4 ID):
+- T12/오류: 지원 안 되는 게임 실행 → 오류 배너(안내 문구 + 원문 앞 3줄 + [로그 공유][닫기]) → 뒤로가기로 배너 닫힘, 앱이 멈추지 않음. 게임 화면에서 오류가 나면 바로 라이브러리로.
+- 진단 로그: 설정 > 정보 > 진단 로그 공유, 그리고 오류 배너의 [로그 공유] → 공유 시트 → 파일이 열리고 "Last error"에 오류 원문 전체(레지스터·스택 포함), logcat 부분이 채워져 있는지.
+- HUD CPU %(⚙ 길게 누르기, 맨 위 하늘색 줄): 같은 게임에서 값이 일정한지. 참고: 호스트 측정 약 11~12%(코어 하나 = 100% 기준). 일시정지 중엔 "paused"가 붙고 낮아져야 정상.
+- T3: 정상 게임(하트 캐치) 회귀 — 실행·조작·종료(⏸ → 게임 종료) 후 다시 실행.
 
 ## 4. 진행 중 조사: 슬라이드 도중 입력 끊김
 
@@ -37,21 +44,40 @@ Debug 10 영상: ◀를 화면 **왼쪽 끝 가까이** 누른 채 위로 밀자
 
 사용자 스크린샷을 받으면: SYS CANCEL이면 원인 확정 → 대응 후보(①제외 영역 확인·로그 ②왼쪽 열 키를 가장자리에서 조금 띄우기 ③P1 몰입 모드), 아니면 기록대로 추적. 원인 해결 후 진단 HUD 입력 기록은 유지해도 됨(기본 꺼짐, 비용 작음).
 
-## 5. 새로 보고된 문제: 지원 안 되는 게임에서 "fatal error" 후 멈춤
+## 5. 지원 안 되는 게임에서 "fatal error" 후 멈춤 — Phase 3.5에서 처리
 
-증상(사용자): 지원 안 되는 게임을 열면 fatal error가 뜨고 멈춘 것처럼 되며, 뒤로가기 등을 해도 꺼지지 않는다. 스크린샷은 아직 없음.
+증상(사용자): 지원 안 되는 게임을 열면 fatal error가 뜨고 멈춘 것처럼 되며, 뒤로가기 등을 해도 꺼지지 않는다.
+
+**판정(Phase 3.5, 사용자 스크린샷 + 코드)**: 이 증상은 ANR이 아니라 **오류 배너가 화면 전체를 덮은 것**이다.
+- 스크린샷: 앱은 이미 라이브러리(상단 바 "폴드 레트로" + ⚙)로 돌아와 있고, 빨간 배너에 `Fatal error: net.wie.WieError: Fatal error: Allocation failure` + 레지스터·스택 덤프 전체가 들어가 화면을 다 덮었다.
+- 코드: tick이 Err를 돌려주면 에뮬 스레드는 오류를 저장하고 **바로 끝난다**(session.rs `Ok(Err(e)) => … break`). 그래서 이어지는 `nativeStop`의 join은 즉시 끝난다 → 이 경로에서 UI 정지는 없다.
+- 뒤로가기가 안 먹은 이유: 라이브러리에 BackHandler가 없어 뒤로가기 = 앱이 백그라운드로(Android 12+ 루트 Activity는 finish하지 않음) → 다시 열면 같은 배너(remember 상태)가 그대로.
+- 수정: 배너에는 안내 문구 + 원문 앞 3줄(고정폭, 말줄임)만, [로그 공유][닫기] 버튼, 라이브러리에서 뒤로가기 = 배너 닫기. 원문 전체는 진단 로그로.
+- `Allocation failure` 자체는 코어의 에뮬 메모리 할당 실패(wie-util `WieError::AllocationFailure`, KTF 네이티브 svc 4 경유)다. 게임 파일이 없어 headless 재현은 못 했다 — 파일을 받으면 `wipi_android` headless로 오류·STUBS 줄을 확인한다.
+
+원래 추정(아래)은 **다른 경로의 잠재 위험**으로 남는다 — Kotlin 쪽 방어는 Phase 3.5에서 넣었다:
 
 코드로 본 추정(미검증):
 - "Fatal error: …"는 wie `WieError::FatalError` 문구. tick이 Err를 돌려주면 세션 루프가 끝나고 앱이 배너와 함께 라이브러리로 돌아가야 정상.
 - 멈춤 후보: 게임 코드가 한 tick 안에서 양보하지 않고 계속 돌면(ARM/자바 무한 루프 등) 에뮬 스레드가 tick에서 안 돌아온다. 이때 종료 경로 `EmulatorSession.stop()` → `nativeStop()` → `session::stop()`이 **UI 스레드에서 SESSION 락을 쥔 채 thread.join()** → 영원히 대기 → 앱 전체 정지(ANR). 다음 `session::start`도 낡은 세션을 join하므로 같은 문제.
 - 자바 스레드의 uncaught exception은 앱 오류로 안 올라오고 조용한 프리즈가 된다(원작자 CLAUDE.md).
+- 가능성: ARM 코어는 1만 명령마다 양보하므로(wie-core-arm `yields_every_ten_thousand_instructions`) ARM 무한 루프로는 tick이 안 멈춘다. 남는 경우는 코어의 Rust 핸들러·자바 인터프리터 안에서 양보 없이 도는 경우 — 드물지만 배제 못 함.
+- **Kotlin 방어(Phase 3.5)**: `EmulatorSession.stop()`이 상태를 즉시 초기화(UI는 바로 라이브러리)하고 `nativeStop`은 `SessionStopper`가 백그라운드 스레드에서 실행. 정지가 끝나기 전에는 새 게임 시작을 막고("정리 중" 안내), 3초가 넘으면 "응답 없음 + [앱 종료]"(프로세스 종료가 유일한 복구). 정지 중에는 키 sink가 네이티브를 부르지 않는다(SESSION 락에서 UI가 막히지 않게).
+- **남은 rust/ 변경안(승인 필요, 아직 안 함)**: ① `session::stop()`/`start()`가 SESSION 락을 놓은 뒤 join하고, 종료 신호 채널 `recv_timeout`(예: 2초)으로 기다렸다 넘으면 스레드를 분리(detach)·경고 로그 → 멈춘 에뮬 스레드가 있어도 새 게임 시작 가능(대가: 멈춘 스레드가 CPU 코어 하나를 계속 씀 — 프로세스 재시작 전까지). ② tick 무응답 감지: 에뮬 스레드가 tick 시작 시각을 원자값으로 남기고 JNI `nativeTickStalledMs()`로 노출 → 게임 화면에서 "응답 없음" 안내. ②는 `WipiNative` external 추가라 AGENTS.md 규칙 2와도 걸린다.
 
 ## 6. 다음 단계 제안
 
-1. 사용자 결과(§3)로 #4·#5 머지.
-2. Phase 3.5(Opus, high): 진단 로그 내보내기 + 멈춤 수정 — §7 프롬프트.
-3. Phase 4(가이드 §4 그대로) — 단, 항목 3의 `git diff --stat 43a6098 -- rust/`는 이제 비어 있지 않다. session.rs 승인 예외(#5)만 있어야 정상으로 판정.
-4. P1 백로그 추가분: 화면 방향 고정 옵션(메인 화면용), 키패드 햅틱 세기, 가로 분할(SPLIT, 커버 가로 포함).
+1. 사용자: Phase 3.5 빌드로 §3의 확인 목록 진행. 문제가 생기면 진단 로그 파일을 그대로 첨부(앱·기기·오류 원문·logcat이 한 파일에 있음).
+2. Phase 4(가이드 §4 그대로) — 단, 항목 3의 `git diff --stat 43a6098 -- rust/`는 이제 비어 있지 않다. session.rs 승인 예외(#5)만 있어야 정상으로 판정(Phase 3.5는 rust/를 건드리지 않았다).
+3. 사용자 결정 대기: §5의 rust/ 변경안 ①②(실제로 tick이 멈추는 게임이 나오면 우선순위가 올라간다). 지원 안 되는 게임 파일을 받으면 headless로 오류·STUBS 확인.
+4. §4 입력 끊김: 사용자 입력 기록 스크린샷을 받으면 판정.
+5. P1 백로그 추가분: 화면 방향 고정 옵션(메인 화면용), 키패드 햅틱 세기, 가로 분할(SPLIT, 커버 가로 포함).
+
+Phase 3.5에서 생긴 것(코드 위치):
+- `Diagnostics.kt`: 마지막 게임·오류·CPU를 SharedPreferences("diagnostics")에 기록, 보고서 = 앱 버전·빌드(`BuildConfig.CI_BUILD` = CI면 `debug-<번호> <커밋>`, 로컬이면 `local`) + 기기·Android + 세션 상태 + 마지막 게임/CPU/오류 원문 + `logcat -d --pid -t 2000`. `cacheDir/diagnostics/`에 쓰고 FileProvider(`<applicationId>.diagnostics`, `res/xml/diagnostic_paths.xml`)로 공유 시트.
+- `CpuUsage.kt`: `/proc/self/stat` utime+stime 차이 → %(코어 하나 = 100%). HUD가 켜져 있을 때만 1초마다.
+- `SessionStopper.kt`: 비동기 정지 + 정지 중/응답 없음 상태(단위 테스트 `SessionStopperTest`).
+- 클라우드 세션 팁: Maven Central이 429를 줄 때가 있다 → 세션 전용 Gradle init 스크립트로 구글 미러(`maven-central.storage-download.googleapis.com/maven2/`)를 `beforeSettings`에서 먼저 넣으면 된다(커밋하지 않음).
 
 ## 7. Phase 3.5 프롬프트 (가이드 §4 [공통] 블록 뒤에 붙인다)
 

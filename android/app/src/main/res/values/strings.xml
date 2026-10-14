@@ -20,10 +20,8 @@
     <string name="delete_game_title">Delete game</string>
     <string name="delete_game_message">Delete \"%1$s\"? Its save data will also be deleted.</string>
     <string name="error_start_failed">Couldn\'t start the game. Please try again.</string>
-    <string name="error_load_failed">Couldn\'t load the game — it may be unsupported or the file may be corrupted.
-(%1$s)</string>
-    <string name="error_runtime">An error occurred while running — this game may not be fully supported yet.
-(%1$s)</string>
+    <string name="error_load_failed">Couldn\'t load the game — it may be unsupported or the file may be corrupted.</string>
+    <string name="error_runtime">An error occurred while running — this game may not be fully supported yet.</string>
     <string name="settings_title">Settings</string>
     <string name="settings_sound_header">Sound</string>
     <string name="settings_sound">Sound</string>
@@ -53,4 +51,12 @@
     <string name="license_role_rustysynth">Software MIDI synthesizer</string>
     <string name="license_role_font">In-game text font</string>
     <string name="license_role_soundfont">MIDI soundfont</string>
+    <string name="error_previous_stopping">The previous game is still closing. Try again in a moment.</string>
+    <string name="error_previous_stuck">The previous game isn\'t responding, so a new game can\'t start. Close the app and open it again.</string>
+    <string name="action_close">Close</string>
+    <string name="action_close_app">Close app</string>
+    <string name="action_share_log">Share log</string>
+    <string name="settings_share_diagnostics">Share diagnostic log</string>
+    <string name="settings_share_diagnostics_desc">App and device info, the last error and this app\'s log, for bug reports</string>
+    <string name="diag_share_failed">Couldn\'t create the diagnostic log</string>
 </resources>

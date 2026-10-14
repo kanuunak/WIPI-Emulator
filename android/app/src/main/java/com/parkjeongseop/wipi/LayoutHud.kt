@@ -93,10 +93,14 @@ object InputTrace {
     }
 }
 
-/** 화면 왼쪽 위(안전 영역 안)에 크게 표시. 입력을 받지 않아 아래 키·게임 터치를 막지 않는다. */
+/**
+ * 화면 왼쪽 위(안전 영역 안)에 크게 표시. 입력을 받지 않아 아래 키·게임 터치를 막지 않는다.
+ * [cpu]: 앱 CPU 사용률 줄(1초마다 갱신, 코어 하나 = 100%) — 맨 위에 하늘색으로.
+ */
 @Composable
-fun LayoutHud(metrics: LayoutMetrics, trace: List<String> = emptyList(), modifier: Modifier = Modifier) {
+fun LayoutHud(metrics: LayoutMetrics, trace: List<String> = emptyList(), cpu: String? = null, modifier: Modifier = Modifier) {
     Column(modifier = modifier.background(Color.Black.copy(alpha = 0.75f)).padding(6.dp)) {
+        cpu?.let { Text(it, color = Color(0xFF87CEFA), fontSize = 14.sp, lineHeight = 16.sp, fontFamily = FontFamily.Monospace) }
         metrics.lines.forEach {
             Text(it, color = Color(0xFF7CFC00), fontSize = 14.sp, lineHeight = 16.sp, fontFamily = FontFamily.Monospace)
         }

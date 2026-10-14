@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -80,7 +81,7 @@ class Settings(context: Context) {
 private enum class SettingsPage { Settings, Licenses }
 
 @Composable
-fun SettingsFlow(settings: Settings, onVolumeChanged: () -> Unit, onClose: () -> Unit) {
+fun SettingsFlow(settings: Settings, onVolumeChanged: () -> Unit, onShareDiagnostics: () -> Unit, onClose: () -> Unit) {
     var page by remember { mutableStateOf(SettingsPage.Settings) }
     var detail by remember { mutableStateOf<License?>(null) }
 
@@ -101,6 +102,7 @@ fun SettingsFlow(settings: Settings, onVolumeChanged: () -> Unit, onClose: () ->
         else -> SettingsPage(
             settings = settings,
             onVolumeChanged = onVolumeChanged,
+            onShareDiagnostics = onShareDiagnostics,
             onShowLicenses = { page = SettingsPage.Licenses },
             onBack = onClose,
         )
@@ -136,7 +138,13 @@ private fun CategoryHeader(title: String) {
 }
 
 @Composable
-private fun SettingsPage(settings: Settings, onVolumeChanged: () -> Unit, onShowLicenses: () -> Unit, onBack: () -> Unit) {
+private fun SettingsPage(
+    settings: Settings,
+    onVolumeChanged: () -> Unit,
+    onShareDiagnostics: () -> Unit,
+    onShowLicenses: () -> Unit,
+    onBack: () -> Unit,
+) {
     var soundEnabled by remember { mutableStateOf(settings.soundEnabled) }
     var pcmVolume by remember { mutableStateOf(settings.pcmVolume) }
     var midiVolume by remember { mutableStateOf(settings.midiVolume) }
@@ -239,6 +247,12 @@ private fun SettingsPage(settings: Settings, onVolumeChanged: () -> Unit, onShow
                 headlineContent = { Text(stringResource(R.string.settings_licenses)) },
                 trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
                 modifier = Modifier.clickable(onClick = onShowLicenses),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_share_diagnostics)) },
+                supportingContent = { Text(stringResource(R.string.settings_share_diagnostics_desc)) },
+                leadingContent = { Icon(Icons.Filled.Share, null) },
+                modifier = Modifier.clickable(onClick = onShareDiagnostics),
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_version)) },

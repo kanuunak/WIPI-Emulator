@@ -27,7 +27,7 @@
 | `.../WipiNative.kt` | JNI 선언: start, getFrame, keyDown/Up, setPaused, setVolume, stop, poll* |
 | `.../Settings.kt` | SharedPreferences 설정, 설정 화면, 오픈소스 고지 목록 |
 | `.../GameLibrary.kt` | SAF 임포트, `files/games/<id>/{게임, meta.json, cover.png, data/}` |
-| 새 파일(이 포크) | `EmulatorSession.kt`, `KeyInputHub.kt`, `KeypadModel.kt`, `TouchKeypad.kt`, `EmulatorLayout.kt` |
+| 새 파일(이 포크) | `EmulatorSession.kt`, `SessionStopper.kt`(비동기 정지), `KeyInputHub.kt`, `KeypadModel.kt`, `TouchKeypad.kt`, `EmulatorLayout.kt`, `LayoutHud.kt`, `CpuUsage.kt`, `Diagnostics.kt`(진단 로그 공유) |
 | `android/app/src/test/java/com/parkjeongseop/wipi/` | JVM 단위 테스트 |
 | `rust/wipi_core/src/session.rs` | 전역 단일 세션, 키 중복 무시 + 100ms 반복, 일시정지 |
 | `rust/wipi_android/src/bin/headless.rs` | UI 없는 실행 하니스(호스트에서 실행 가능) |

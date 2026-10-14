@@ -11,6 +11,7 @@ import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -18,20 +19,42 @@ import androidx.compose.runtime.setValue
 
 enum class PauseReason { NONE, USER, SYSTEM }
 
+/** [EmulatorSession.start] 결과. BUSY = 이전 세션 정지가 아직 안 끝나 시작하지 않음. */
+enum class StartResult { STARTED, FAILED, BUSY }
+
 object EmulatorSession {
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    /** 모든 키 입력의 단일 경로. 실제 sink = WipiNative. */
+    /** 모든 키 입력의 단일 경로. 실제 sink = WipiNative. 정지 중에는 보내지 않는다(SESSION 락에서 막힐 수 있음). */
     val hub = KeyInputHub(
         sink = object : KeySink {
-            override fun down(key: String) = WipiNative.nativeKeyDown(key)
-            override fun up(key: String) = WipiNative.nativeKeyUp(key)
+            override fun down(key: String) {
+                if (!stopper.inProgress) WipiNative.nativeKeyDown(key)
+            }
+
+            override fun up(key: String) {
+                if (!stopper.inProgress) WipiNative.nativeKeyUp(key)
+            }
         },
         clock = SystemClock::uptimeMillis,
         schedule = { delayMs, action -> mainHandler.postDelayed(action, delayMs) },
     )
 
     private var settings: Settings? = null
+
+    /** 이전 세션 정지가 진행 중(백그라운드). true인 동안 새 게임을 시작하지 않는다. */
+    var stopping by mutableStateOf(false)
+        private set
+
+    private val stopper: SessionStopper = SessionStopper(
+        runInBackground = { block -> Thread(block, "wipi-stop").start() },
+        postToMain = { action -> mainHandler.post(action) },
+        clock = SystemClock::uptimeMillis,
+        onStateChanged = { stopping = stopper.inProgress },
+    )
+
+    /** 정지가 오래 안 끝남 = 에뮬 스레드가 tick에서 돌아오지 않음. 앱(프로세스)을 다시 시작해야 풀린다. */
+    val stopStuck: Boolean get() = stopper.stuck
 
     /** 실행 중인 게임 (null = 세션 없음 → 라이브러리 화면) */
     var activeGame by mutableStateOf<GameEntry?>(null)
@@ -54,13 +77,19 @@ object EmulatorSession {
     /** Activity.onCreate마다 호출해도 된다. WipiNative 초기화 + 볼륨 설정 원본 연결. */
     fun init(context: Context) {
         WipiNative.init(context)
+        Diagnostics.init(context)
         if (settings == null) settings = Settings(context.applicationContext)
     }
 
-    /** nativeStart → 성공 시 상태 설정 → 볼륨 적용 */
-    fun start(entry: GameEntry, soundfontPath: String): Boolean {
+    /** nativeStart → 성공 시 상태 설정 → 볼륨 적용. 이전 세션 정지가 안 끝났으면 시작하지 않는다(BUSY). */
+    fun start(entry: GameEntry, soundfontPath: String): StartResult {
+        if (stopper.inProgress) {
+            Log.w(LOG_TAG, "start blocked: previous session still stopping (${stopStatus()})")
+            return StartResult.BUSY
+        }
         hub.releaseAll()
         entry.dataDir.mkdirs()
+        Diagnostics.recordGameStart(entry)
         val ok = WipiNative.nativeStart(entry.gameFile.readBytes(), entry.filename, entry.dataDir.absolutePath, soundfontPath)
         if (ok) {
             frameBitmap.eraseColor(Color.BLACK)
@@ -69,7 +98,7 @@ object EmulatorSession {
             activeGame = entry
             applyVolume()
         }
-        return ok
+        return if (ok) StartResult.STARTED else StartResult.FAILED
     }
 
     /** 키 전부 해제 → tick 정지 → 음소거. 이미 일시정지 중이면 처음 이유를 유지한다. */
@@ -90,13 +119,28 @@ object EmulatorSession {
         applyVolume()
     }
 
-    /** 키 전부 해제 → 에뮬 스레드 정지(동기) → 상태 초기화 */
+    /**
+     * 키 전부 해제 → 상태 초기화(UI는 바로 라이브러리로) → 에뮬 스레드 정지·join은 백그라운드.
+     * 정지가 끝나기 전에는 [start]가 BUSY를 돌려준다. 세션이 없으면 아무것도 하지 않는다.
+     */
     fun stop() {
+        if (activeGame == null) return
         hub.releaseAll()
-        WipiNative.nativeStop()
         activeGame = null
         pauseReason = PauseReason.NONE
         frameVersion = 0
+        stopper.stop {
+            val t0 = SystemClock.uptimeMillis()
+            WipiNative.nativeStop()
+            Log.i(LOG_TAG, "session stopped in ${SystemClock.uptimeMillis() - t0}ms")
+        }
+    }
+
+    /** 진단용 정지 상태 한 줄 */
+    fun stopStatus(): String = when {
+        !stopper.inProgress -> "no"
+        stopper.stuck -> "STUCK ${stopper.elapsedMs}ms (emulator thread not returning from tick)"
+        else -> "yes ${stopper.elapsedMs}ms"
     }
 
     /** 일시정지 중이면 항상 0(오디오 스레드는 일시정지와 무관하게 돈다), 아니면 설정 볼륨 */

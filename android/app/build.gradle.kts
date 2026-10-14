@@ -23,6 +23,10 @@ android {
         targetSdk = 36
         versionCode = 5  // 매 업로드 증가 필요
         versionName = "0.3.1-fold.0.1"
+        // 진단 로그의 빌드 식별: CI는 드래프트 릴리스 이름(debug-<번호>)과 커밋, 로컬 빌드는 "local"
+        val ciRun = System.getenv("GITHUB_RUN_NUMBER")
+        val ciBuild = if (ciRun != null) "debug-$ciRun ${System.getenv("GITHUB_SHA").orEmpty().take(7)}" else "local"
+        buildConfigField("String", "CI_BUILD", "\"$ciBuild\"")
         // AAB는 ABI별로 자동 분할되므로 실기기(arm64-v8a) 슬라이스만 배포됨.
         // x86_64는 에뮬레이터용이라 Play 배포 AAB엔 불필요하지만, 둘 다 넣어도 무방(APK로 뽑을 때 편함).
         ndk {
