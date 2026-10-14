@@ -4,6 +4,8 @@
 package com.parkjeongseop.wipi
 
 import android.content.res.Configuration
+import android.os.SystemClock
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -73,12 +76,35 @@ fun layoutMetrics(windowWdp: Float, windowHdp: Float, layout: StackLayout): Layo
     return LayoutMetrics(lines, logLine)
 }
 
+/**
+ * 입력 진단 기록: 터치 키패드의 누름·슬라이드·뗌(이유 포함)과 시스템 터치 취소. 최근 [MAX]줄을 HUD에 보이고
+ * Log.i(LOG_TAG)에도 남긴다. 키가 바뀌거나 떼질 때만 기록하므로(손가락 이동마다가 아님) 로그가 넘치지 않는다. 메인 스레드 전용.
+ */
+object InputTrace {
+    private const val MAX = 10
+    val lines = mutableStateListOf<String>()
+
+    fun add(message: String) {
+        val t = SystemClock.uptimeMillis() % 100_000
+        val line = "${t.toString().padStart(5, '0')} $message"
+        Log.i(LOG_TAG, "input $line")
+        lines.add(0, line)
+        while (lines.size > MAX) lines.removeAt(lines.lastIndex)
+    }
+}
+
 /** 화면 왼쪽 위(안전 영역 안)에 크게 표시. 입력을 받지 않아 아래 키·게임 터치를 막지 않는다. */
 @Composable
-fun LayoutHud(metrics: LayoutMetrics, modifier: Modifier = Modifier) {
+fun LayoutHud(metrics: LayoutMetrics, trace: List<String> = emptyList(), modifier: Modifier = Modifier) {
     Column(modifier = modifier.background(Color.Black.copy(alpha = 0.75f)).padding(6.dp)) {
         metrics.lines.forEach {
             Text(it, color = Color(0xFF7CFC00), fontSize = 14.sp, lineHeight = 16.sp, fontFamily = FontFamily.Monospace)
+        }
+        if (trace.isNotEmpty()) {
+            Text("input (new first)", color = Color(0xFFFFD700), fontSize = 13.sp, lineHeight = 15.sp, fontFamily = FontFamily.Monospace)
+            trace.forEach {
+                Text(it, color = Color(0xFFFFD700), fontSize = 13.sp, lineHeight = 15.sp, fontFamily = FontFamily.Monospace)
+            }
         }
     }
 }

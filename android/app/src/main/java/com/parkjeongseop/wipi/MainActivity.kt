@@ -198,6 +198,22 @@ class MainActivity : ComponentActivity() {
         ""
     }
 
+    /**
+     * 진단: 시스템이 터치를 가로채면(뒤로가기 제스처 등) 앱은 ACTION_CANCEL을 받는다 → 레이아웃 HUD 입력 기록에 남긴다.
+     * 터치 시작 위치(dp)도 남겨 화면 가장자리에서 시작했는지 확인한다.
+     */
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (emulatorActive) {
+            val d = resources.displayMetrics.density
+            fun pos(i: Int) = "${(event.getX(i) / d).roundToInt()},${(event.getY(i) / d).roundToInt()}dp"
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> InputTrace.add("sys down @${pos(0)}")
+                MotionEvent.ACTION_CANCEL -> InputTrace.add("SYS CANCEL @${pos(0)} n=${event.pointerCount}")
+            }
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
     // ── 하드웨어 입력: 키보드(wie_cli 배치) + 게임패드 버튼 ──
 
     private val hardwareKeyMap = mapOf(
@@ -287,11 +303,8 @@ class MainActivity : ComponentActivity() {
     private fun EmulatorScreen(onError: (String) -> Unit, onExit: () -> Unit, onSettings: () -> Unit) {
         val vibrateOut = remember { LongArray(2) }
         val paused = EmulatorSession.paused
-        // 프레임·일시정지 상태는 EmulatorSession(프로세스 수명)에 있어 Activity 재생성 뒤에도 마지막 프레임을 바로 그린다
-        val frameVersion = EmulatorSession.frameVersion
-        val frame = remember(frameVersion) {
-            if (frameVersion > 0) EmulatorSession.frameBitmap.asImageBitmap().also { it.prepareToDraw() } else null
-        }
+        // 프레임·일시정지 상태는 EmulatorSession(프로세스 수명)에 있어 Activity 재생성 뒤에도 마지막 프레임을 바로 그린다.
+        // frameVersion은 컴포지션에서 읽지 않는다(읽으면 매 프레임 화면 전체가 재구성된다 — 아래 Canvas draw에서만 읽음)
 
         // 시스템 뒤로가기: 실수 종료 방지를 위해 먼저 일시정지 메뉴, 일시정지 중 다시 누르면 종료 (에뮬 표준 패턴)
         BackHandler {
@@ -391,13 +404,15 @@ class MainActivity : ComponentActivity() {
                 // 키패드 영역(바깥 여백 포함, 높이 = keypadHeight(keyH)) — 키 사각형은 KeypadModel이 이 크기에서 계산
                 TouchKeypad(
                     hub = EmulatorSession.hub,
-                    hapticsEnabled = settings.keypadHaptics,
+                    // 설정은 누를 때마다 읽는다(설정 오버레이에서 바꾸면 바로 반영)
+                    onFeedback = { if (settings.keypadHaptics) haptics.keyTap() },
+                    onTrace = InputTrace::add,
                     modifier = Modifier
                         .offset(layout.keypad.left.dp, layout.keypad.top.dp)
                         .size(layout.keypad.width.dp, layout.keypad.height.dp),
                 )
 
-                if (showHud) LayoutHud(metrics)
+                if (showHud) LayoutHud(metrics, InputTrace.lines)
 
                 // 게임 우상단(안전 영역 안): 일시정지 + 설정. ⚙ 길게 누르기 = 레이아웃 HUD 켜기/끄기
                 Row(modifier = Modifier.offset(layout.icons.left.dp, layout.icons.top.dp)) {

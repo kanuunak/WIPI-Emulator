@@ -4,7 +4,6 @@
 
 package com.parkjeongseop.wipi
 
-import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -28,13 +27,13 @@ import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 
 private val KEY_COLOR = Color(0xFF404040)
 private const val KEY_PRESSED_ALPHA = 0.6f
@@ -47,11 +46,19 @@ private const val KEY_CORNER_DP = 8f
  * - 손가락마다 source `touch:<pointerId>`로 허브에 press / move / release.
  * - 뗌은 `change.pressed == false`로 판정(소비 여부 무시). 포인터 루프가 끝나면(취소·재구성) finally에서 전부 release.
  * - 방향키 블록(1~3행)은 시스템 뒤로가기 제스처에서 제외한다(세로 200dp 한도 이내).
+ *
+ * @param onFeedback 누름·슬라이드로 키가 바뀔 때 호출(햅틱). 설정 확인은 호출자 몫.
+ * @param onTrace 진단 기록(키 누름·슬라이드·뗌과 이유, 좌표 dp). 레이아웃 HUD에 표시된다.
  */
 @Composable
-fun TouchKeypad(hub: KeyInputHub, hapticsEnabled: Boolean, modifier: Modifier = Modifier) {
-    val view = LocalView.current
-    val haptics by rememberUpdatedState(hapticsEnabled)
+fun TouchKeypad(
+    hub: KeyInputHub,
+    onFeedback: () -> Unit,
+    modifier: Modifier = Modifier,
+    onTrace: (String) -> Unit = {},
+) {
+    val feedback by rememberUpdatedState(onFeedback)
+    val trace by rememberUpdatedState(onTrace)
     val textMeasurer = rememberTextMeasurer()
     val labelStyle = TextStyle(color = Color.White, fontSize = 16.sp)
 
@@ -74,10 +81,7 @@ fun TouchKeypad(hub: KeyInputHub, hapticsEnabled: Boolean, modifier: Modifier = 
                 .fillMaxSize()
                 .systemGestureExclusion { Rect(0f, 0f, it.size.width.toFloat(), layout.dpadBlockBottom) }
                 .pointerInput(layout, hub) {
-                    fun feedback() {
-                        // 누름·슬라이드 때 가벼운 탭 — 하드웨어 키/게임패드에는 적용하지 않음 (물리 피드백 존재)
-                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    }
+                    fun at(x: Float, y: Float) = "${(x / density).roundToInt()},${(y / density).roundToInt()}"
 
                     awaitPointerEventScope {
                         val active = HashMap<PointerId, KeyDef>()
@@ -92,6 +96,7 @@ fun TouchKeypad(hub: KeyInputHub, hapticsEnabled: Boolean, modifier: Modifier = 
                                     var current = active[id]
                                     // 허브가 이미 놓은 손가락(일시정지·포커스 상실의 releaseAll)은 떼기 전까지 무시
                                     if (current != null && !hub.holds(source(id))) {
+                                        trace("#${id.value} ${current.code} dropped (hub released)")
                                         active.remove(id)
                                         current = null
                                     }
@@ -99,17 +104,23 @@ fun TouchKeypad(hub: KeyInputHub, hapticsEnabled: Boolean, modifier: Modifier = 
                                         !change.pressed -> if (current != null) {
                                             active.remove(id)
                                             hub.release(source(id))
+                                            // Compose의 취소 이벤트는 시각이 직전과 같다(실제 뗌은 시각이 흐름)
+                                            val why = if (change.uptimeMillis == change.previousUptimeMillis) "CANCEL" else "up"
+                                            trace("#${id.value} ${current.code} $why @${at(x, y)}")
                                         }
                                         current == null -> if (change.changedToDownIgnoreConsumed()) {
-                                            layout.hitTestInitial(x, y)?.let { key ->
+                                            val key = layout.hitTestInitial(x, y)
+                                            if (key != null) {
                                                 active[id] = key
                                                 hub.press(source(id), key.code)
                                                 feedback()
                                             }
+                                            trace("#${id.value} down ${key?.code ?: "-"} @${at(x, y)}")
                                         }
                                         layout.isBeyondLeave(x, y) -> {
                                             active.remove(id)
                                             hub.release(source(id))
+                                            trace("#${id.value} ${current.code} left area @${at(x, y)}")
                                         }
                                         else -> {
                                             val next = layout.hitTestMove(current, x, y)
@@ -117,6 +128,7 @@ fun TouchKeypad(hub: KeyInputHub, hapticsEnabled: Boolean, modifier: Modifier = 
                                                 active[id] = next
                                                 hub.move(source(id), next.code)
                                                 feedback()
+                                                trace("#${id.value} ${current.code}>${next.code} @${at(x, y)}")
                                             }
                                         }
                                     }
@@ -125,6 +137,7 @@ fun TouchKeypad(hub: KeyInputHub, hapticsEnabled: Boolean, modifier: Modifier = 
                                 pressed = active.values.mapTo(HashSet()) { it.code }
                             }
                         } finally {
+                            if (active.isNotEmpty()) trace("loop end: release ${active.values.joinToString { it.code }}")
                             active.keys.forEach { hub.release(source(it)) }
                             active.clear()
                             pressed = emptySet()
@@ -168,7 +181,7 @@ private fun TouchKeypadPreview() {
     }
     TouchKeypad(
         hub = hub,
-        hapticsEnabled = false,
+        onFeedback = {},
         modifier = Modifier
             .background(EMULATOR_BG)
             .width(344.dp)
