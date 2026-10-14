@@ -60,7 +60,9 @@ class GameLibrary(context: Context) {
     /** SAF Uri에서 게임을 임포트 (복사 + 표지/이름 추출·캐시). 실패 시 null. */
     fun importGame(uri: Uri): GameEntry? {
         val filename = queryDisplayName(uri) ?: uri.lastPathSegment ?: "game.zip"
-        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+        val raw = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+        // 폴더 한 겹으로 감싼 zip은 벗겨서 저장한다(코어는 __adf__·jar가 맨 위에 있어야 형식을 알아본다)
+        val bytes = if (filename.endsWith(".zip", ignoreCase = true)) ZipLayout.unwrapSingleFolder(raw) ?: raw else raw
 
         val id = UUID.randomUUID().toString()
         val dir = File(root, id).apply { mkdirs() }

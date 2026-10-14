@@ -174,10 +174,24 @@ class EmulatorLayoutTest {
 
     @Test
     fun iconsInsideGameTopRight() {
+        // 커버 화면: 게임이 폭을 다 써서 옆에 자리가 없다 → 게임 우상단 위
         val l = layout(344f, 882f, 2.625f, top = 28f, bottom = 24f)
+        assertFalse(l.iconsOutside)
         assertEquals(l.game.right, l.icons.right, eps)
         assertEquals(l.game.top, l.icons.top, eps)
         assertEquals(48f, l.icons.height, eps)
+    }
+
+    @Test
+    fun iconsBesideGameOnWideWindow() {
+        // 메인 화면 가로(실측 829x690dp, safe 0,30,0,15): 게임 오른쪽 옆, 게임과 안 겹친다
+        val l = layout(829f, 690f, 2.625f, top = 30f, bottom = 15f)
+        assertInvariants(l)
+        assertTrue(l.iconsOutside)
+        assertEquals(l.game.right, l.icons.left, eps)
+        assertEquals(l.game.top, l.icons.top, eps)
+        assertTrue(l.icons.right <= l.availWdp + eps)
+        assertTrue(l.summary().contains("icons=out"))
     }
 
     @Test
