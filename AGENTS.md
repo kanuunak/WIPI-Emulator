@@ -11,7 +11,7 @@
 2. Kotlin 패키지 `com.parkjeongseop.wipi`, `object WipiNative`, `external fun` 시그니처, `proguard-rules.pro`는 바꾸지 않는다(JNI 심볼 `Java_com_parkjeongseop_wipi_WipiNative_*`에 묶여 있음). 바꾸는 것은 `applicationId`뿐이다.
 3. Composable에서 `WipiNative`를 직접 부르지 않는다. 키는 `KeyInputHub`, 세션·일시정지·볼륨·정지는 `EmulatorSession`을 거친다(Preview·단위 테스트 가능하게).
 4. UI에서 키 반복(auto-repeat)을 만들지 않는다. 코어가 누른 키마다 100ms 간격으로 반복 이벤트를 만든다.
-5. compileSdk/targetSdk 36, AGP 8.10.1, Kotlin 2.1.21, Compose BOM 2024.12.01을 유지한다. 새 의존성은 테스트용 `junit:junit:4.13.2` 외에는 승인 없이 추가하지 않는다.
+5. compileSdk/targetSdk 36, AGP 8.10.1, Kotlin 2.1.21, Compose BOM 2024.12.01을 유지한다. 새 의존성은 승인 없이 추가하지 않는다(승인됨: 테스트용 `junit:junit:4.13.2`, 미리보기용 `androidx.compose.ui:ui-tooling-preview`·`ui-tooling`(debug) — 버전은 BOM).
 6. 새 문자열은 `res/values/strings.xml`(en)과 `res/values-ko/strings.xml`(ko) 둘 다에 넣는다.
 7. 머신 고유 절대경로를 커밋하지 않는다. `rust/.cargo/config.toml`은 수정하지 않고 환경변수로 덮어쓴다. `RUSTFLAGS`·`CARGO_ENCODED_RUSTFLAGS`는 설정하지 않는다(16KB 정렬 플래그가 무시됨).
 8. 게임 파일, 상용 게임 스크린샷·영상, 제조사·통신사 로고를 커밋하지 않는다. 테스트 자산은 `demo/`(MIT, 자체 제작)만 쓴다.
@@ -23,7 +23,7 @@
 
 | 경로 | 내용 |
 |---|---|
-| `android/app/src/main/java/com/parkjeongseop/wipi/MainActivity.kt` | 화면 전환, EmulatorScreen(게임+키패드), 하드웨어 키·스틱 매핑, (기존) Keypad/KeyButton |
+| `android/app/src/main/java/com/parkjeongseop/wipi/MainActivity.kt` | 화면 전환, EmulatorScreen(게임+TouchKeypad), 하드웨어 키·스틱 매핑 |
 | `.../WipiNative.kt` | JNI 선언: start, getFrame, keyDown/Up, setPaused, setVolume, stop, poll* |
 | `.../Settings.kt` | SharedPreferences 설정, 설정 화면, 오픈소스 고지 목록 |
 | `.../GameLibrary.kt` | SAF 임포트, `files/games/<id>/{게임, meta.json, cover.png, data/}` |

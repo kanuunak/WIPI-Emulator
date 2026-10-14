@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -63,6 +62,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -75,7 +75,6 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,11 +83,16 @@ import androidx.lifecycle.LifecycleEventObserver
 import java.io.File
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withTimeoutOrNull
 
 const val SCREEN_WIDTH = 240
 const val SCREEN_HEIGHT = 320
 const val SOUNDFONT_NAME = "GeneralUser-GS.sf2"
+
+/** 일시정지 중 폴링 루프가 깨어나는 간격(ms). 실행 중에는 16ms. */
+private const val PAUSED_POLL_MS = 500L
 
 class MainActivity : ComponentActivity() {
     private lateinit var library: GameLibrary
@@ -319,6 +323,18 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(Unit) {
             while (isActive) {
+                // 일시정지 중에는 tick이 멈춰 새 프레임·진동·종료가 생기지 않는다 → 16ms 폴링을 멈추고(발열·배터리)
+                // 재개되면 즉시, 아니면 PAUSED_POLL_MS마다 한 번만 깨어 오류(일시정지 전 시작한 로드의 실패 등)를 확인한다
+                if (EmulatorSession.paused) {
+                    withTimeoutOrNull(PAUSED_POLL_MS) { snapshotFlow { EmulatorSession.paused }.first { !it } }
+                    if (EmulatorSession.paused) {
+                        pendingError()?.let {
+                            onError(it)
+                            return@LaunchedEffect
+                        }
+                        continue
+                    }
+                }
                 EmulatorSession.pollFrame()
                 // enabled가 아니어도 요청은 소비해야 큐가 쌓이지 않는다
                 if (EmulatorSession.pollVibrate(vibrateOut) && settings.vibrationEnabled) {
@@ -372,14 +388,13 @@ class MainActivity : ComponentActivity() {
                     ) { Text(stringResource(R.string.emulator_loading), color = Color.White) }
                 }
 
-                Keypad(
+                // 키패드 영역(바깥 여백 포함, 높이 = keypadHeight(keyH)) — 키 사각형은 KeypadModel이 이 크기에서 계산
+                TouchKeypad(
                     hub = EmulatorSession.hub,
                     hapticsEnabled = settings.keypadHaptics,
-                    keyH = layout.keyH.dp,
                     modifier = Modifier
                         .offset(layout.keypad.left.dp, layout.keypad.top.dp)
-                        .width(layout.keypad.width.dp)
-                        .padding(KEYPAD_MARGIN_DP.dp),
+                        .size(layout.keypad.width.dp, layout.keypad.height.dp),
                 )
 
                 if (showHud) LayoutHud(metrics)
@@ -576,61 +591,5 @@ class MainActivity : ComponentActivity() {
                 dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.action_cancel)) } },
             )
         }
-    }
-}
-
-// ── 키패드 (iOS Keypad와 동일: 눌림 피드백 포함) ──
-
-private val KEYPAD_ROWS = listOf(
-    listOf("SOFT_L" to "◁", "UP" to "▲", "SOFT_R" to "▷"),
-    listOf("LEFT" to "◀", "OK" to "OK", "RIGHT" to "▶"),
-    listOf("CALL" to "📞", "DOWN" to "▼", "CLR" to "CLR"),
-    listOf("1" to "1", "2" to "2", "3" to "3"),
-    listOf("4" to "4", "5" to "5", "6" to "6"),
-    listOf("7" to "7", "8" to "8", "9" to "9"),
-    listOf("*" to "*", "0" to "0", "#" to "#"),
-)
-
-@Composable
-fun Keypad(hub: KeyInputHub, hapticsEnabled: Boolean, keyH: Dp, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(KEYPAD_SPACING_DP.dp)) {
-        KEYPAD_ROWS.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(KEYPAD_SPACING_DP.dp), modifier = Modifier.fillMaxWidth()) {
-                row.forEach { (key, label) ->
-                    KeyButton(key = key, label = label, hub = hub, hapticsEnabled = hapticsEnabled, modifier = Modifier.weight(1f).height(keyH))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun KeyButton(key: String, label: String, hub: KeyInputHub, hapticsEnabled: Boolean, modifier: Modifier = Modifier) {
-    var pressed by remember { mutableStateOf(false) }
-    val view = androidx.compose.ui.platform.LocalView.current
-
-    Box(
-        modifier = modifier
-            .background(Color(0xFF404040).copy(alpha = if (pressed) 0.6f else 1f), RoundedCornerShape(8.dp))
-            .pointerInput(key) {
-                detectTapGestures(
-                    onPress = {
-                        pressed = true
-                        // 키 다운 시 가벼운 탭 — 하드웨어 키/게임패드에는 적용하지 않음 (물리 피드백 존재)
-                        if (hapticsEnabled) view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-                        // 허브 경유: 다른 source(하드웨어 키 등)와 참조 카운트, 최소 누름 시간, 일시정지 시 일괄 해제
-                        hub.press("touchkey:$key", key)
-                        try {
-                            awaitRelease()
-                        } finally {
-                            pressed = false
-                            hub.release("touchkey:$key")
-                        }
-                    },
-                )
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(label, color = Color.White, fontSize = 16.sp)
     }
 }
