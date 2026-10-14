@@ -104,5 +104,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended") // SF Symbols 대응 아이콘 (이모지 대체)
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.compose.ui:ui-tooling-preview") // @Preview (TouchKeypad) — 사용자 승인 2026-10-14
+    debugImplementation("androidx.compose.ui:ui-tooling") // Android Studio 미리보기 렌더링
     testImplementation("junit:junit:4.13.2")
 }

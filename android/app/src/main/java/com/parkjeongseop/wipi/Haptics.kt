@@ -37,4 +37,22 @@ class Haptics(context: Context) {
         }
         vibrator.vibrate(effect)
     }
+
+    /**
+     * 터치 키패드 누름·슬라이드 피드백. View.performHapticFeedback(VIRTUAL_KEY)는 기기(삼성)에서 거의 안 느껴져
+     * 진동기의 표준 클릭 효과를 직접 쓴다(API 29+). 그 아래는 짧은 원샷.
+     */
+    fun keyTap() {
+        val vibrator = vibrator ?: return
+        val effect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+        } else {
+            VibrationEffect.createOneShot(KEY_TAP_MS, VibrationEffect.DEFAULT_AMPLITUDE)
+        }
+        vibrator.vibrate(effect)
+    }
+
+    private companion object {
+        const val KEY_TAP_MS = 20L
+    }
 }
