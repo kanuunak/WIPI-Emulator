@@ -78,4 +78,11 @@
     <string name="editor_reset">기본값</string>
     <string name="editor_save">저장</string>
     <string name="editor_hint">끌어서 옮기기 · 모서리 ●를 끌어서 크기 조절 · 이 화면 모양에 저장돼요</string>
+    <string name="settings_filter">화면 필터</string>
+    <string name="settings_filter_desc">크게 키운 게임 그림을 그리는 방식</string>
+    <string name="settings_filter_sharp">선명하게 (픽셀 그대로)</string>
+    <string name="settings_filter_smooth">부드럽게</string>
+    <string name="settings_filter_scanlines">스캔라인 (옛 브라운관)</string>
+    <string name="settings_filter_lcd">LCD 격자 (옛 휴대폰 화면)</string>
+    <string name="settings_filter_upscale">업스케일 (대각선을 매끈하게, Android 13 이상)</string>
 </resources>

@@ -78,4 +78,11 @@
     <string name="editor_reset">Default</string>
     <string name="editor_save">Save</string>
     <string name="editor_hint">Drag to move · drag the ● corner to resize · saved for this screen shape</string>
+    <string name="settings_filter">Screen filter</string>
+    <string name="settings_filter_desc">How the enlarged game picture is drawn</string>
+    <string name="settings_filter_sharp">Sharp (original pixels)</string>
+    <string name="settings_filter_smooth">Smooth</string>
+    <string name="settings_filter_scanlines">Scanlines (old CRT)</string>
+    <string name="settings_filter_lcd">LCD grid (old phone screen)</string>
+    <string name="settings_filter_upscale">Upscale (smooth diagonals, Android 13+)</string>
 </resources>

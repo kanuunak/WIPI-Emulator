@@ -117,6 +117,9 @@ class MainActivity : ComponentActivity() {
     /** 게임 화면 배치 설정(설정 오버레이에서 바꾸면 바로 다시 배치) */
     private var layoutMode by mutableStateOf(LayoutMode.AUTO)
 
+    /** 게임 화면 필터(설정에서 바꾸면 바로 반영) */
+    private var screenFilter by mutableStateOf(ScreenFilter.SHARP)
+
     /** 배치 편집으로 저장·삭제할 때마다 증가 → 저장한 배치를 다시 읽는다 */
     private var customLayoutVersion by mutableIntStateOf(0)
 
@@ -131,6 +134,7 @@ class MainActivity : ComponentActivity() {
         settings = Settings(this)
         haptics = Haptics(this)
         layoutMode = settings.layoutMode
+        screenFilter = settings.screenFilter
 
         setContent {
             WipiTheme {
@@ -210,6 +214,7 @@ class MainActivity : ComponentActivity() {
                     settings = settings,
                     onVolumeChanged = { EmulatorSession.applyVolume() }, // 일시정지 중이면 0 유지
                     onLayoutModeChanged = { layoutMode = it },
+                    onScreenFilterChanged = { screenFilter = it },
                     onDiagnostics = { showDiagnostics = true },
                     onClose = { showSettings = false },
                 )
@@ -465,6 +470,7 @@ class MainActivity : ComponentActivity() {
         }
 
         val frameImage = remember { EmulatorSession.frameBitmap.asImageBitmap() }
+        val renderer = remember { GameRenderer(EmulatorSession.frameBitmap) }
         // 첫 프레임 도착 여부만 구독 (frameVersion 자체를 컴포지션에서 읽으면 매 프레임 재구성된다)
         val hasFrame by remember { derivedStateOf { EmulatorSession.frameVersion > 0 } }
         var showHud by rememberSaveable { mutableStateOf(false) } // 레이아웃 HUD, 기본 꺼짐
@@ -533,13 +539,10 @@ class MainActivity : ComponentActivity() {
                     )
                 } else {
                 // 게임: draw 단계에서만 frameVersion을 읽어 새 프레임마다 다시 그리기만 한다
+                // 필터(설정 > 화면 > 화면 필터)도 draw 단계에서 읽는다
                 Canvas(modifier = Modifier.offset(layout.game.left.dp, layout.game.top.dp).size(layout.game.width.dp, layout.game.height.dp)) {
                     if (EmulatorSession.frameVersion > 0) {
-                        drawImage(
-                            frameImage,
-                            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                            filterQuality = FilterQuality.None,
-                        )
+                        with(renderer) { draw(frameImage, screenFilter) }
                     }
                 }
                 if (!hasFrame) {

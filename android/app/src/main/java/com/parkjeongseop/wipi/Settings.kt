@@ -9,6 +9,7 @@ import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewQuilt
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -42,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -81,6 +85,11 @@ class Settings(context: Context) {
         get() = runCatching { LayoutMode.valueOf(prefs.getString("layoutMode", null) ?: "AUTO") }.getOrDefault(LayoutMode.AUTO)
         set(value) = prefs.edit { putString("layoutMode", value.name) }
 
+    /** 게임 화면 필터 */
+    var screenFilter: ScreenFilter
+        get() = runCatching { ScreenFilter.valueOf(prefs.getString("screenFilter", null) ?: "SHARP") }.getOrDefault(ScreenFilter.SHARP)
+        set(value) = prefs.edit { putString("screenFilter", value.name) }
+
     /** 배치 편집으로 저장한 배치(화면 크기 키별, [CustomLayout.serialize]). 없으면 null */
     fun customLayout(key: String): String? = prefs.getString("customLayout.$key", null)
 
@@ -103,6 +112,7 @@ fun SettingsFlow(
     settings: Settings,
     onVolumeChanged: () -> Unit,
     onLayoutModeChanged: (LayoutMode) -> Unit,
+    onScreenFilterChanged: (ScreenFilter) -> Unit,
     onDiagnostics: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -127,6 +137,7 @@ fun SettingsFlow(
             settings = settings,
             onVolumeChanged = onVolumeChanged,
             onLayoutModeChanged = onLayoutModeChanged,
+            onScreenFilterChanged = onScreenFilterChanged,
             onDiagnostics = onDiagnostics,
             onShowLicenses = { page = SettingsPage.Licenses },
             onBack = onClose,
@@ -168,6 +179,7 @@ private fun SettingsPage(
     settings: Settings,
     onVolumeChanged: () -> Unit,
     onLayoutModeChanged: (LayoutMode) -> Unit,
+    onScreenFilterChanged: (ScreenFilter) -> Unit,
     onDiagnostics: () -> Unit,
     onShowLicenses: () -> Unit,
     onBack: () -> Unit,
@@ -179,6 +191,7 @@ private fun SettingsPage(
     var vibrationScale by remember { mutableStateOf(settings.vibrationScale) }
     var keypadHaptics by remember { mutableStateOf(settings.keypadHaptics) }
     var layoutMode by remember { mutableStateOf(settings.layoutMode) }
+    var screenFilter by remember { mutableStateOf(settings.screenFilter) }
 
     SettingsScaffold(title = stringResource(R.string.settings_title), onBack = onBack) { modifier ->
         Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -297,6 +310,35 @@ private fun SettingsPage(
                     }
                 },
                 leadingContent = { Icon(Icons.Filled.ViewQuilt, null) },
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_filter)) },
+                supportingContent = {
+                    Column {
+                        Text(stringResource(R.string.settings_filter_desc))
+                        val options = listOf(
+                            ScreenFilter.SHARP to R.string.settings_filter_sharp,
+                            ScreenFilter.SMOOTH to R.string.settings_filter_smooth,
+                            ScreenFilter.SCANLINES to R.string.settings_filter_scanlines,
+                            ScreenFilter.LCD to R.string.settings_filter_lcd,
+                            ScreenFilter.UPSCALE to R.string.settings_filter_upscale,
+                        )
+                        options.forEach { (filter, label) ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    screenFilter = filter
+                                    settings.screenFilter = filter
+                                    onScreenFilterChanged(filter)
+                                },
+                            ) {
+                                RadioButton(selected = screenFilter == filter, onClick = null)
+                                Text(stringResource(label), modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
+                    }
+                },
+                leadingContent = { Icon(Icons.Filled.Tune, null) },
             )
 
             CategoryHeader(stringResource(R.string.settings_info_header))
