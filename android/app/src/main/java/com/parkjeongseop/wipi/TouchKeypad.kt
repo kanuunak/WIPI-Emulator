@@ -55,6 +55,7 @@ fun TouchKeypad(
     hub: KeyInputHub,
     onFeedback: () -> Unit,
     modifier: Modifier = Modifier,
+    rows: List<List<KeyDef>> = KeypadModel.ROWS,
     onTrace: (String) -> Unit = {},
 ) {
     val feedback by rememberUpdatedState(onFeedback)
@@ -69,9 +70,11 @@ fun TouchKeypad(
         val density = LocalDensity.current.density
         val widthPx = constraints.maxWidth.toFloat()
         val heightPx = constraints.maxHeight.toFloat()
-        val layout = remember(widthPx, heightPx, density) {
-            KeypadModel.layout(widthPx, heightPx, KeypadMetrics(density))
+        val layout = remember(widthPx, heightPx, density, rows) {
+            KeypadModel.layout(widthPx, heightPx, KeypadMetrics(density), rows)
         }
+        // 뒤로가기 제스처 제외: 방향키 블록. 숫자만 있는 키패드(좌우 분할의 오른쪽)는 화면 오른쪽 가장자리에 붙으므로 전체
+        val exclusionBottom = if (layout.dpadBlockBottom > 0f) layout.dpadBlockBottom else heightPx
         val labels = remember(layout, textMeasurer) {
             layout.keys.map { textMeasurer.measure(it.key.label, labelStyle) }
         }
@@ -79,7 +82,7 @@ fun TouchKeypad(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .systemGestureExclusion { Rect(0f, 0f, it.size.width.toFloat(), layout.dpadBlockBottom) }
+                .systemGestureExclusion { Rect(0f, 0f, it.size.width.toFloat(), exclusionBottom) }
                 .pointerInput(layout, hub) {
                     fun at(x: Float, y: Float) = "${(x / density).roundToInt()},${(y / density).roundToInt()}"
 

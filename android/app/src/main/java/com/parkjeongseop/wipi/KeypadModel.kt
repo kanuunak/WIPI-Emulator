@@ -147,19 +147,25 @@ object KeypadModel {
 
     val KEYS: List<KeyDef> = ROWS.flatten()
 
+    /** 좌우 분할(SPLIT)의 왼쪽 키패드: 소프트키·방향키·통화·CLR (1~3행) */
+    val UPPER_ROWS: List<List<KeyDef>> = ROWS.take(3)
+
+    /** 좌우 분할(SPLIT)의 오른쪽 키패드: 숫자·*·# (4~7행) */
+    val LOWER_ROWS: List<List<KeyDef>> = ROWS.drop(3)
+
     /**
-     * 키패드 영역(바깥 여백 포함, [widthPx]×[heightPx])을 7행×3열로 나눈다.
-     * 행 높이 = (높이 − 2·여백 − 6·간격) / 7 → 높이가 [keypadHeight](keyH)·density면 행 높이 = keyH.
+     * 키패드 영역(바깥 여백 포함, [widthPx]×[heightPx])을 [rows]의 행×3열로 나눈다(기본 = 전체 7행).
+     * 행 높이 = (높이 − 2·여백 − (행−1)·간격) / 행 → 높이가 [keypadHeight](keyH)·density면 행 높이 = keyH.
      */
-    fun layout(widthPx: Float, heightPx: Float, metrics: KeypadMetrics): KeypadLayout {
+    fun layout(widthPx: Float, heightPx: Float, metrics: KeypadMetrics, rows: List<List<KeyDef>> = ROWS): KeypadLayout {
         val margin = metrics.marginDp * metrics.density
         val spacing = metrics.spacingDp * metrics.density
-        val rows = ROWS.size
-        val cols = ROWS.first().size
+        val rowCount = rows.size
+        val cols = rows.first().size
         val keyW = max(0f, (widthPx - 2 * margin - (cols - 1) * spacing) / cols)
-        val keyH = max(0f, (heightPx - 2 * margin - (rows - 1) * spacing) / rows)
+        val keyH = max(0f, (heightPx - 2 * margin - (rowCount - 1) * spacing) / rowCount)
 
-        val rects = ROWS.flatMapIndexed { r, row ->
+        val rects = rows.flatMapIndexed { r, row ->
             row.mapIndexed { c, key ->
                 val left = margin + c * (keyW + spacing)
                 val top = margin + r * (keyH + spacing)

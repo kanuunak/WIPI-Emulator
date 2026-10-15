@@ -112,6 +112,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var settings: Settings
     private lateinit var haptics: Haptics
 
+    /** 게임 화면 배치 설정(설정 오버레이에서 바꾸면 바로 다시 배치) */
+    private var layoutMode by mutableStateOf(LayoutMode.AUTO)
+
     /** 에뮬 화면에서만 하드웨어 키를 게임으로 전달 (화면 = 세션 유무에서 파생) */
     private val emulatorActive: Boolean get() = EmulatorSession.activeGame != null
 
@@ -122,6 +125,7 @@ class MainActivity : ComponentActivity() {
         library = GameLibrary(this)
         settings = Settings(this)
         haptics = Haptics(this)
+        layoutMode = settings.layoutMode
 
         setContent {
             WipiTheme {
@@ -200,6 +204,7 @@ class MainActivity : ComponentActivity() {
                 SettingsFlow(
                     settings = settings,
                     onVolumeChanged = { EmulatorSession.applyVolume() }, // 일시정지 중이면 0 유지
+                    onLayoutModeChanged = { layoutMode = it },
                     onDiagnostics = { showDiagnostics = true },
                     onClose = { showSettings = false },
                 )
@@ -491,8 +496,8 @@ class MainActivity : ComponentActivity() {
             // 안쪽: 안전 영역(safeDrawing 인셋 제외) 안에서 명세 §5.3 계산 결과대로 배치
             BoxWithConstraints(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 val density = LocalDensity.current.density
-                val layout = remember(maxWidth, maxHeight, density) {
-                    computeStackLayout(maxWidth.value, maxHeight.value, density)
+                val layout = remember(maxWidth, maxHeight, density, layoutMode) {
+                    computeScreenLayout(layoutMode, maxWidth.value, maxHeight.value, density)
                 }
                 val metrics = layoutMetrics(windowW, windowH, layout)
                 LaunchedEffect(metrics) { Log.i(LOG_TAG, metrics.logLine) }
@@ -514,16 +519,19 @@ class MainActivity : ComponentActivity() {
                     ) { Text(stringResource(R.string.emulator_loading), color = Color.White) }
                 }
 
-                // 키패드 영역(바깥 여백 포함, 높이 = keypadHeight(keyH)) — 키 사각형은 KeypadModel이 이 크기에서 계산
-                TouchKeypad(
-                    hub = EmulatorSession.hub,
-                    // 설정은 누를 때마다 읽는다(설정 오버레이에서 바꾸면 바로 반영)
-                    onFeedback = { if (settings.keypadHaptics) haptics.keyTap() },
-                    onTrace = InputTrace::add,
-                    modifier = Modifier
-                        .offset(layout.keypad.left.dp, layout.keypad.top.dp)
-                        .size(layout.keypad.width.dp, layout.keypad.height.dp),
-                )
+                // 키패드(STACK = 7행 하나, SPLIT = 왼쪽 3행 + 오른쪽 4행) — 키 사각형은 KeypadModel이 각 크기에서 계산
+                layout.pads.forEach { pad ->
+                    TouchKeypad(
+                        hub = EmulatorSession.hub,
+                        // 설정은 누를 때마다 읽는다(설정 오버레이에서 바꾸면 바로 반영)
+                        onFeedback = { if (settings.keypadHaptics) haptics.keyTap() },
+                        rows = pad.rows,
+                        onTrace = InputTrace::add,
+                        modifier = Modifier
+                            .offset(pad.rect.left.dp, pad.rect.top.dp)
+                            .size(pad.rect.width.dp, pad.rect.height.dp),
+                    )
+                }
 
                 if (showHud) LayoutHud(metrics, InputTrace.lines, cpuLines)
 

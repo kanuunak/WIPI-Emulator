@@ -66,4 +66,10 @@
     <string name="diag_dialog_message">파일로 저장: 고른 폴더(예: 다운로드)에 남아요.\n공유: 다른 앱으로 바로 보내요. 메시지에는 요약이 들어가고, 전체 로그는 첨부를 받는 앱에만 파일로 붙어요.</string>
     <string name="diag_saved">진단 로그를 저장했어요</string>
     <string name="diag_failed">진단 로그를 만들지 못했어요</string>
+    <string name="settings_screen_header">화면</string>
+    <string name="settings_layout">게임 배치</string>
+    <string name="settings_layout_desc">자동: 좁은 화면(커버)은 게임 아래 키패드, 넓은 화면(펼친 화면 가로)은 키패드를 양옆으로 나눔</string>
+    <string name="settings_layout_auto">자동</string>
+    <string name="settings_layout_stack">위아래</string>
+    <string name="settings_layout_split">좌우</string>
 </resources>

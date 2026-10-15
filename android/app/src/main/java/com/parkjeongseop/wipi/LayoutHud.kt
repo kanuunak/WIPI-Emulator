@@ -37,7 +37,7 @@ data class LayoutMetrics(val lines: List<String>, val logLine: String)
 
 /** 인셋(dp, L,T,R,B)을 읽어 레이아웃 계산 결과와 합친다. 인셋 변화도 구독한다. */
 @Composable
-fun layoutMetrics(windowWdp: Float, windowHdp: Float, layout: StackLayout): LayoutMetrics {
+fun layoutMetrics(windowWdp: Float, windowHdp: Float, layout: ScreenLayout): LayoutMetrics {
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val config = LocalConfiguration.current
@@ -66,13 +66,11 @@ fun layoutMetrics(windowWdp: Float, windowHdp: Float, layout: StackLayout): Layo
         add("insets dp L,T,R,B")
         named.forEach { (name, value) -> add("${name.padEnd(6)} $value") }
         add("avail ${layout.availWdp.roundToInt()}x${layout.availHdp.roundToInt()}dp")
-        add("keyH ${layout.keyH.roundToInt()}dp gap ${layout.gap.roundToInt()}dp")
         add("game ${g.width.roundToInt()}x${g.height.roundToInt()}dp")
         add("     ${px.width}x${px.height}px x${"%.2f".format(java.util.Locale.ROOT, layout.gameScale)}")
-        add("keypad ${layout.keypad.width.roundToInt()}x${layout.keypad.height.roundToInt()}dp")
-        if (!layout.fits) add("OVERFLOW: keypad > avail")
+        addAll(layout.details)
     }
-    val logLine = "layout $window $scale " + named.joinToString(" ") { (n, v) -> "$n=$v" } + " " + layout.summary()
+    val logLine = "layout $window $scale " + named.joinToString(" ") { (n, v) -> "$n=$v" } + " " + layout.summary
     return LayoutMetrics(lines, logLine)
 }
 

@@ -86,7 +86,9 @@ Debug 10 영상: ◀를 화면 **왼쪽 끝 가까이** 누른 채 위로 밀자
    - 배속(사용자 요청): 게임이 보는 시계(`MobilePlatform::now`)에 배율을 곱하는 방식 + `nativeSetSpeed` JNI 1개(규칙 1·2 예외 필요). 사용자 결정 = **먼저 측정**: HUD 스레드별 CPU에서 `wie-emulator`가 90~100%면 폰이 못 따라가는 것(배속 무의미, 성능 개선), 한참 낮으면 배속 구현. 같은 장치로 일시정지 중 시계를 멈추면 재개 시 시간 점프(명세 §4.3 P2)도 풀린다.
    - wie 수정 절차(이번에 확립): `kanuunak/wie`에 `fix/…` 브랜치 → 코어 테스트(`cargo test -p <크레이트>`) → headless로 해당 게임·데모 확인 → `rust/Cargo.toml` rev 교체(`cargo metadata`로 Cargo.lock의 wie 출처 줄만 갱신, lock 재생성 금지).
 4. §4 입력 끊김: 사용자 입력 기록 스크린샷을 받으면 판정.
-5. P1 백로그 추가분: 화면 방향 고정 옵션(메인 화면용), 키패드 햅틱 세기, 가로 분할(SPLIT, 커버 가로 포함).
+5. 좌우 분할(SPLIT, 명세 §4.2 P1) — Debug 24에서 구현: `ScreenLayout.kt`. 게임 = 가운데 높이 가득, 키패드 둘(왼쪽 1~3행 소프트·방향·통화·CLR, 오른쪽 4~7행 숫자), 아래 정렬. 설정 > 화면 > 게임 배치(자동/위아래/좌우, 기본 자동). AUTO = SPLIT 게임 높이가 STACK의 1.2배 이상일 때(명세의 "비율 1.5 미만" 대신 실제 게임 크기로 판단 — 같은 결과). SPLIT 키 40~72dp 폭·40~60dp 높이, 게임 최소 폭 180dp(커버에선 강제해도 STACK). 계산값(d 2.625): 메인 가로 829x645 → 게임 484x645, 키 50dp / 메인 세로 690x784 → 게임 402x536, 키 40dp / 커버 → STACK. 사용자 확인 필요: 양손 키 위치 감각, 메인 세로에서 SPLIT(키 40dp)이 나은지.
+6. 사용자 요청(다음): ① 배치 편집 화면 — 게임·키패드 위치·크기를 손으로 조정해 화면 모양별로 저장(ScreenLayout 결과를 출발점으로) ② 화면 필터 — 스캔라인, 부드럽게(bilinear), 업스케일(xBR 계열은 AGSL RuntimeShader, API 33+; 그 미만은 nearest/bilinear만). 둘 다 Kotlin만, 새 의존성 없음.
+7. P1 백로그 추가분: 화면 방향 고정 옵션(메인 화면용), 키패드 햅틱 세기, 가로 분할(SPLIT, 커버 가로 포함).
 
 Phase 3.5에서 생긴 것(코드 위치):
 - `Diagnostics.kt`: 마지막 게임·오류·CPU를 SharedPreferences("diagnostics")에 기록, 보고서 = 앱 버전·빌드(`BuildConfig.CI_BUILD` = CI면 `debug-<번호> <커밋>`, 로컬이면 `local`) + 기기·Android + 세션 상태 + 마지막 게임/CPU/오류 원문 + `logcat -d --pid -t 2000`. `cacheDir/diagnostics/`에 쓰고 FileProvider(`<applicationId>.diagnostics`, `res/xml/diagnostic_paths.xml`)로 공유 시트.

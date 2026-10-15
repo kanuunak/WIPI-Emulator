@@ -10,6 +10,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ViewQuilt
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -28,6 +30,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -71,6 +76,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("keypadHaptics", true)
         set(value) = prefs.edit { putBoolean("keypadHaptics", value) }
 
+    /** 게임 화면 배치: 자동(화면 모양으로) / 위아래(STACK) / 좌우(SPLIT) */
+    var layoutMode: LayoutMode
+        get() = runCatching { LayoutMode.valueOf(prefs.getString("layoutMode", null) ?: "AUTO") }.getOrDefault(LayoutMode.AUTO)
+        set(value) = prefs.edit { putString("layoutMode", value.name) }
+
     /** 현재 설정 기준 유효 볼륨 (pcm, midi — 사운드 off면 0) */
     fun effectiveVolumes(): Pair<Float, Float> =
         if (soundEnabled) pcmVolume to midiVolume else 0f to 0f
@@ -81,7 +91,13 @@ class Settings(context: Context) {
 private enum class SettingsPage { Settings, Licenses }
 
 @Composable
-fun SettingsFlow(settings: Settings, onVolumeChanged: () -> Unit, onDiagnostics: () -> Unit, onClose: () -> Unit) {
+fun SettingsFlow(
+    settings: Settings,
+    onVolumeChanged: () -> Unit,
+    onLayoutModeChanged: (LayoutMode) -> Unit,
+    onDiagnostics: () -> Unit,
+    onClose: () -> Unit,
+) {
     var page by remember { mutableStateOf(SettingsPage.Settings) }
     var detail by remember { mutableStateOf<License?>(null) }
 
@@ -102,6 +118,7 @@ fun SettingsFlow(settings: Settings, onVolumeChanged: () -> Unit, onDiagnostics:
         else -> SettingsPage(
             settings = settings,
             onVolumeChanged = onVolumeChanged,
+            onLayoutModeChanged = onLayoutModeChanged,
             onDiagnostics = onDiagnostics,
             onShowLicenses = { page = SettingsPage.Licenses },
             onBack = onClose,
@@ -137,10 +154,12 @@ private fun CategoryHeader(title: String) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsPage(
     settings: Settings,
     onVolumeChanged: () -> Unit,
+    onLayoutModeChanged: (LayoutMode) -> Unit,
     onDiagnostics: () -> Unit,
     onShowLicenses: () -> Unit,
     onBack: () -> Unit,
@@ -151,6 +170,7 @@ private fun SettingsPage(
     var vibrationEnabled by remember { mutableStateOf(settings.vibrationEnabled) }
     var vibrationScale by remember { mutableStateOf(settings.vibrationScale) }
     var keypadHaptics by remember { mutableStateOf(settings.keypadHaptics) }
+    var layoutMode by remember { mutableStateOf(settings.layoutMode) }
 
     SettingsScaffold(title = stringResource(R.string.settings_title), onBack = onBack) { modifier ->
         Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -240,6 +260,35 @@ private fun SettingsPage(
                         settings.keypadHaptics = it
                     })
                 },
+            )
+
+            CategoryHeader(stringResource(R.string.settings_screen_header))
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_layout)) },
+                supportingContent = {
+                    Column {
+                        Text(stringResource(R.string.settings_layout_desc))
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                            val options = listOf(
+                                LayoutMode.AUTO to R.string.settings_layout_auto,
+                                LayoutMode.STACK to R.string.settings_layout_stack,
+                                LayoutMode.SPLIT to R.string.settings_layout_split,
+                            )
+                            options.forEachIndexed { i, (mode, label) ->
+                                SegmentedButton(
+                                    selected = layoutMode == mode,
+                                    onClick = {
+                                        layoutMode = mode
+                                        settings.layoutMode = mode
+                                        onLayoutModeChanged(mode)
+                                    },
+                                    shape = SegmentedButtonDefaults.itemShape(i, options.size),
+                                ) { Text(stringResource(label)) }
+                            }
+                        }
+                    }
+                },
+                leadingContent = { Icon(Icons.Filled.ViewQuilt, null) },
             )
 
             CategoryHeader(stringResource(R.string.settings_info_header))

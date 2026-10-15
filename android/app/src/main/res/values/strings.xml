@@ -66,4 +66,10 @@
     <string name="diag_dialog_message">Save to file: kept in a folder you choose, such as Download.\nShare: sent straight to another app. A summary goes in the message and the full log is attached (only in apps that accept attachments).</string>
     <string name="diag_saved">Diagnostic log saved</string>
     <string name="diag_failed">Couldn\'t create the diagnostic log</string>
+    <string name="settings_screen_header">Screen</string>
+    <string name="settings_layout">Game layout</string>
+    <string name="settings_layout_desc">Auto: game above the keypad on narrow screens (cover), keypad split to both sides on wide screens (unfolded, landscape)</string>
+    <string name="settings_layout_auto">Auto</string>
+    <string name="settings_layout_stack">Stacked</string>
+    <string name="settings_layout_split">Split</string>
 </resources>
