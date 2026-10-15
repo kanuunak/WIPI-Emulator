@@ -3,11 +3,11 @@
 목표: Galaxy Z Fold5 커버 화면에서 위 게임 + 아래 터치 키패드로 WIPI/SKVM/J2ME 게임을 편하게 플레이한다.
 - 명세: `docs/fold-retro/Fold_Retro_Phone_MVP_v0.3.md` — 작업 전에 해당 절을 반드시 읽는다.
 - 실행 가이드(Phase 프롬프트·CI·클라우드 환경): `docs/fold-retro/Implementation_Guide_v0.3.md`
-- 원작자 개발 메모 `CLAUDE.md`는 참고용이다. 그중 빌드 경로(macOS), wie rev(b75a03c1), "path 의존성" 서술은 낡았다. 실제 기준은 `rust/Cargo.toml`(`kanuunak/wie` @ d9675f5f = ParkJeongseop/wie 38f7e04f + 우리 수정 1건)과 명세 §6.3.
+- 원작자 개발 메모 `CLAUDE.md`는 참고용이다. 그중 빌드 경로(macOS), wie rev(b75a03c1), "path 의존성" 서술은 낡았다. 실제 기준은 `rust/Cargo.toml`(`kanuunak/wie` @ d45b8a7c = ParkJeongseop/wie 38f7e04f + 우리 수정 2건)과 명세 §6.3.
 
 ## 절대 규칙
 
-1. `rust/` 아래(wie·RustJava 의존성 포함)는 수정하지 않는다. 필요해 보이면 멈추고 이유를 보고한다. (승인된 예외: `wipi_core/src/session.rs` tick 간격 1ms — 발열, 2026-10-14 / wie를 `kanuunak/wie` 포크로 교체 — KTF DB EOF 읽기 0 채움, 붕어빵타이쿤3, 2026-10-14. wie 수정은 `kanuunak/wie`에 브랜치로 올리고 `rust/Cargo.toml` rev만 바꾼다)
+1. `rust/` 아래(wie·RustJava 의존성 포함)는 수정하지 않는다. 필요해 보이면 멈추고 이유를 보고한다. (승인된 예외: `wipi_core/src/session.rs` tick 간격 1ms — 발열, 2026-10-14 / wie를 `kanuunak/wie` 포크로 교체 — KTF DB EOF 읽기 0 채움, 붕어빵타이쿤3, 2026-10-14 / KTF DB 용량 16MB·MC_knlGetAccessLevel, 2026-10-15. wie 수정은 `kanuunak/wie`에 브랜치로 올리고 `rust/Cargo.toml` rev만 바꾼다)
 2. Kotlin 패키지 `com.parkjeongseop.wipi`, `object WipiNative`, `external fun` 시그니처, `proguard-rules.pro`는 바꾸지 않는다(JNI 심볼 `Java_com_parkjeongseop_wipi_WipiNative_*`에 묶여 있음). 바꾸는 것은 `applicationId`뿐이다.
 3. Composable에서 `WipiNative`를 직접 부르지 않는다. 키는 `KeyInputHub`, 세션·일시정지·볼륨·정지는 `EmulatorSession`을 거친다(Preview·단위 테스트 가능하게).
 4. UI에서 키 반복(auto-repeat)을 만들지 않는다. 코어가 누른 키마다 100ms 간격으로 반복 이벤트를 만든다.

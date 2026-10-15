@@ -36,7 +36,7 @@ Debug 18 실기기 결과(2026-10-15, 메인 화면 가로 829x690dp):
 - 붕어빵타이쿤3 정상, 데몬헌터 정상, 진단 로그 파일 저장 정상.
 - HUD CPU(코어 하나 = 100%): 붕어빵타이쿤3 60%(wie-emulator 40), 데몬헌터 100~132%(wie-emulator 79~89, main 12~31, AudioTrack 5~10), 퍼즐 게임 133%(wie-emulator 99, AudioTrack 19). → 무거운 게임은 에뮬 스레드가 코어 하나를 거의 다 쓴다. 이 상태에선 배속을 넣어도 실제로 빨라지지 않는다(성능 개선이 먼저). 다만 "바쁜 대기"(게임이 시간을 확인하며 도는 루프)도 99%로 보이므로 느림 자체의 증거는 아니다.
 - 메인 화면 가로에서 ⏸·⚙가 게임 우상단(점수·MENU 표시)을 가렸다 → 옆에 자리가 있으면 게임 밖 오른쪽에 둔다(`EmulatorLayout` 7번, `iconsOutside`).
-- 이노티아 연대기2(KTF, 사용자 팩): "Unknown archive format" = zip 안이 폴더 한 겹으로 감싸져 있음 → 임포트 때 벗김(`ZipLayout.unwrapSingleFolder`, 기존 항목은 삭제 후 다시 임포트). 벗긴 뒤 headless: 설치 공간 부족(코어 KTF DB 용량 한도 1MB < 게임 요구 2103KB) → 실험으로 16MB 올리면 설치·로딩·로고 통과 → `MC_knlGetAccessLevel` 미구현(Unimplemented, 실행 오류) → 실험으로 값을 돌려주면 게임 자체 "인증오류 1001"(cert.c2s, 원래 폰 인증). **복제 방지 인증이라 우회 작업은 하지 않는다.** 용량 한도·GetAccessLevel은 다른 게임에도 걸릴 수 있는 호환성 항목으로 남긴다(wie 수정 = 승인 필요, 아직 안 함).
+- 이노티아 연대기2(KTF, 사용자 팩): "Unknown archive format" = zip 안이 폴더 한 겹으로 감싸져 있음 → 임포트 때 벗김(`ZipLayout.unwrapSingleFolder`, 기존 항목은 삭제 후 다시 임포트). 벗긴 뒤 headless: 설치 공간 부족(코어 KTF DB 용량 한도 1MB < 게임 요구 2103KB) → 실험으로 16MB 올리면 설치·로딩·로고 통과 → `MC_knlGetAccessLevel` 미구현(Unimplemented, 실행 오류) → 실험으로 값을 돌려주면 게임 자체 "인증오류 1001"(cert.c2s, 원래 폰 인증). **복제 방지 인증이라 우회 작업은 하지 않는다.** 용량 한도·GetAccessLevel은 사용자 승인(2026-10-15)으로 wie에 반영: `kanuunak/wie` 브랜치 `fix/ktf-storage-access-level` @ d45b8a7c(한도 16MB, GetAccessLevel = 0 스텁 — 값 미검증, 0·1 모두 같은 동작). 이노티아 연대기2는 이제 에뮬 오류 없이 인증 화면까지 간다(인증 우회는 하지 않음).
 
 Phase 3.5 빌드에서 사용자 확인 필요(§7.4 ID):
 - T12/오류: 지원 안 되는 게임 실행 → 오류 배너(안내 문구 + 원문 앞 3줄 + [로그 공유][닫기]) → 뒤로가기로 배너 닫힘, 앱이 멈추지 않음. 게임 화면에서 오류가 나면 바로 라이브러리로.
