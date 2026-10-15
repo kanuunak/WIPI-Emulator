@@ -40,13 +40,17 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -164,6 +168,11 @@ class MainActivity : ComponentActivity() {
                     },
                     onImport = { uri ->
                         val entry = library.importGame(uri)
+                        games = library.list()
+                        entry != null
+                    },
+                    onImportFolder = { uri ->
+                        val entry = library.importFolder(uri)
                         games = library.list()
                         entry != null
                     },
@@ -575,6 +584,7 @@ class MainActivity : ComponentActivity() {
         onDismissError: () -> Unit,
         onPlay: (GameEntry) -> Unit,
         onImport: (Uri) -> Boolean,
+        onImportFolder: (Uri) -> Boolean,
         onDelete: (GameEntry) -> Unit,
         onSettings: () -> Unit,
         onDiagnostics: () -> Unit,
@@ -591,6 +601,11 @@ class MainActivity : ComponentActivity() {
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null && !onImport(uri)) importError = readError
         }
+        // 폴더(zip을 풀어 둔 것 등) — 앱이 게임 파일 하나로 묶어 저장한다
+        val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null && !onImportFolder(uri)) importError = readError
+        }
+        var addMenu by remember { mutableStateOf(false) }
 
         // Material 표준: TopAppBar(좌정렬 타이틀 + 우측 액션들)
         Scaffold(
@@ -598,9 +613,27 @@ class MainActivity : ComponentActivity() {
                 TopAppBar(
                     title = { Text(stringResource(R.string.app_name)) },
                     actions = {
-                        IconButton(onClick = {
-                            picker.launch(arrayOf("application/zip", "application/java-archive", "application/octet-stream"))
-                        }) { Icon(Icons.Filled.Add, stringResource(R.string.action_add_game)) }
+                        Box {
+                            IconButton(onClick = { addMenu = true }) { Icon(Icons.Filled.Add, stringResource(R.string.action_add_game)) }
+                            DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.action_import_file)) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, null) },
+                                    onClick = {
+                                        addMenu = false
+                                        picker.launch(arrayOf("application/zip", "application/java-archive", "application/octet-stream"))
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.action_import_folder)) },
+                                    leadingIcon = { Icon(Icons.Filled.Folder, null) },
+                                    onClick = {
+                                        addMenu = false
+                                        folderPicker.launch(null)
+                                    },
+                                )
+                            }
+                        }
                         IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, stringResource(R.string.action_settings)) }
                     },
                 )

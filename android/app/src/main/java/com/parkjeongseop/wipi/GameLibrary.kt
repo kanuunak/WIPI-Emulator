@@ -7,6 +7,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import org.json.JSONObject
 import java.io.File
@@ -61,9 +62,56 @@ class GameLibrary(context: Context) {
     fun importGame(uri: Uri): GameEntry? {
         val filename = queryDisplayName(uri) ?: uri.lastPathSegment ?: "game.zip"
         val raw = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-        // 폴더 한 겹으로 감싼 zip은 벗겨서 저장한다(코어는 __adf__·jar가 맨 위에 있어야 형식을 알아본다)
-        val bytes = if (filename.endsWith(".zip", ignoreCase = true)) ZipLayout.unwrapSingleFolder(raw) ?: raw else raw
+        // 게임이 폴더 안에 든 zip은 게임 폴더만 맨 위로 꺼내 저장한다(코어는 __adf__·jar가 맨 위에 있어야 형식을 알아본다)
+        val bytes = if (filename.endsWith(".zip", ignoreCase = true)) ZipLayout.unwrapGameFolder(raw) ?: raw else raw
+        return store(filename, bytes)
+    }
 
+    /**
+     * SAF 폴더(OpenDocumentTree)에서 게임을 임포트: 폴더 안 파일을 전부 읽어 게임 파일 하나로 만든다
+     * (zip을 풀어 둔 폴더를 다시 묶지 않고 바로 넣기). 실패하거나 [MAX_FOLDER_BYTES]를 넘으면 null.
+     */
+    fun importFolder(treeUri: Uri): GameEntry? {
+        val rootId = DocumentsContract.getTreeDocumentId(treeUri)
+        val folderName = queryDisplayName(DocumentsContract.buildDocumentUriUsingTree(treeUri, rootId)) ?: "game"
+        val files = ArrayList<Pair<String, ByteArray>>()
+        var total = 0L
+
+        fun walk(docId: String, prefix: String): Boolean {
+            val children = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
+            val columns = arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE,
+            )
+            val rows = contentResolver.query(children, columns, null, null, null)?.use { c ->
+                buildList<Triple<String, String, String?>> { while (c.moveToNext()) add(Triple(c.getString(0), c.getString(1), c.getString(2))) }
+            } ?: return false
+            for ((id, name, mime) in rows) {
+                if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    if (!walk(id, "$prefix$name/")) return false
+                    continue
+                }
+                val data = contentResolver.openInputStream(DocumentsContract.buildDocumentUriUsingTree(treeUri, id))
+                    ?.use { it.readBytes() } ?: return false
+                total += data.size
+                if (total > MAX_FOLDER_BYTES) return false
+                files += "$prefix$name" to data
+            }
+            return true
+        }
+
+        return try {
+            if (!walk(rootId, "")) return null
+            val (filename, bytes) = ZipLayout.fromFolder(folderName, files.sortedBy { it.first }) ?: return null
+            store(filename, bytes)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** 게임 파일을 games/<UUID>/에 저장하고 표지·이름을 추출해 캐시 */
+    private fun store(filename: String, bytes: ByteArray): GameEntry? {
         val id = UUID.randomUUID().toString()
         val dir = File(root, id).apply { mkdirs() }
         File(dir, filename).writeBytes(bytes)
@@ -80,6 +128,11 @@ class GameLibrary(context: Context) {
         )
 
         return load(dir)
+    }
+
+    companion object {
+        /** 폴더 임포트 최대 크기(전부 메모리로 읽는다). WIPI 게임은 대개 수 MB. */
+        const val MAX_FOLDER_BYTES = 64L * 1024 * 1024
     }
 
     fun delete(entry: GameEntry) {

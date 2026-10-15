@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Fold Retro</string>
     <string name="library_empty_title">No games yet</string>
-    <string name="library_empty_hint">Tap + at the top right to add a .zip / .jar game</string>
+    <string name="library_empty_hint">Tap + at the top right to add a game file (.zip / .jar) or a game folder</string>
     <string name="action_add_game">Add game</string>
     <string name="action_settings">Settings</string>
     <string name="action_ok">OK</string>
@@ -17,6 +17,8 @@
     <string name="emulator_layout_hud_toggle">Show or hide layout info</string>
     <string name="import_failed_title">Import failed</string>
     <string name="import_read_error">Couldn\'t read the file</string>
+    <string name="action_import_file">Game file (.zip / .jar)</string>
+    <string name="action_import_folder">Game folder</string>
     <string name="delete_game_title">Delete game</string>
     <string name="delete_game_message">Delete \"%1$s\"? Its save data will also be deleted.</string>
     <string name="error_start_failed">Couldn\'t start the game. Please try again.</string>
