@@ -148,10 +148,12 @@ class ZipLayoutTest {
 
     @Test
     fun j2meFolderUsesItsJar() {
-        // __adf__ 없이 jar 하나(+ jad) → jar를 그대로
-        val (name, data) = ZipLayout.fromFolder("hc", listOf("heart.jad" to b("D"), "heart.jar" to b("JARBYTES")))!!
+        // 표시 파일 없이 jar 하나 → jar를 그대로
+        val (name, data) = ZipLayout.fromFolder("hc", listOf("readme.txt" to b("R"), "heart.jar" to b("JARBYTES")))!!
         assertEquals("heart.jar", name)
         assertEquals("JARBYTES", String(data))
+        // jad + jar는 그 폴더를 zip으로 묶은 것과 같게(코어의 ez-java 경로)
+        assertEquals("hc.zip", ZipLayout.fromFolder("hc", listOf("heart.jad" to b("D"), "heart.jar" to b("J")))!!.first)
     }
 
     @Test
@@ -160,5 +162,32 @@ class ZipLayoutTest {
         val (name, _) = ZipLayout.fromFolder("g", listOf("a.jar" to b("1"), "b.jar" to b("2")))!!
         assertEquals("g.zip", name)
         assertNull(ZipLayout.fromFolder("g", emptyList()))
+    }
+
+    @Test
+    fun lgtAndSktFoldersKeepTheirMarkers() {
+        // 실기기 버그(Debug 21): LGT 폴더(app_info + jar)가 "jar 하나" 규칙에 걸려 jar만 저장됐다 → 표시 파일 유지
+        val (lgtName, lgt) = ZipLayout.fromFolder(
+            "010930",
+            listOf("app_info" to b("I"), "010930.jar" to b("J"), "binary.mod" to b("B"), "res/a.dat" to b("D")),
+        )!!
+        assertEquals("010930.zip", lgtName)
+        assertEquals(mapOf("app_info" to "I", "010930.jar" to "J", "binary.mod" to "B", "res/a.dat" to "D"), read(lgt))
+
+        val (sktName, skt) = ZipLayout.fromFolder("skt", listOf("wrap/game.msd" to b("M"), "wrap/game.jar" to b("J")))!!
+        assertEquals("skt.zip", sktName)
+        assertEquals(mapOf("game.msd" to "M", "game.jar" to "J"), read(skt))
+
+        // zip 쪽도 같은 표시 파일로 게임 폴더를 찾는다
+        assertEquals(
+            mapOf("app_info" to "I", "1.jar" to "J"),
+            read(ZipLayout.unwrapGameFolder(zip("readme.txt" to "R", "g/app_info" to "I", "g/1.jar" to "J"))!!),
+        )
+    }
+
+    @Test
+    fun markerDetection() {
+        listOf("__adf__", "x/__adf__", "app_info", "a/b.MSD", "c.jad").forEach { assertEquals(it, true, ZipLayout.isMarker(it)) }
+        listOf("app_info.txt", "x.jar", "__adf__.bak", "msd").forEach { assertEquals(it, false, ZipLayout.isMarker(it)) }
     }
 }
