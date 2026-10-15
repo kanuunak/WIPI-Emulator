@@ -190,4 +190,39 @@ class ZipLayoutTest {
         listOf("__adf__", "x/__adf__", "app_info", "a/b.MSD", "c.jad").forEach { assertEquals(it, true, ZipLayout.isMarker(it)) }
         listOf("app_info.txt", "x.jar", "__adf__.bak", "msd").forEach { assertEquals(it, false, ZipLayout.isMarker(it)) }
     }
+
+    @Test
+    fun restoresFilesFlattenedByExtractorApp() {
+        // 실기기(Debug 22): 파일 앱이 zip을 풀며 __adf__·__class__를 폴더 밖으로 꺼내 이름을 바꿨다
+        val (name, data) = ZipLayout.fromFolder(
+            "이노티아연대기2",
+            listOf(
+                "이노티아2 설치법.png" to b("PNG"),
+                "이노티아연대기2-wipi1.2-__adf__" to b("AID"),
+                "이노티아연대기2-wipi1.2-__class__" to b("CLS"),
+                "이노티아연대기2-wipi1.2/010100D2.jar" to b("J"),
+                "이노티아연대기2-wipi1.2/big.icon" to b("I"),
+                "이노티아연대기2-wipi1.2/p/i_pack.dat" to b("P"),
+            ),
+        )!!
+        assertEquals("이노티아연대기2.zip", name)
+        assertEquals(
+            mapOf("__adf__" to "AID", "__class__" to "CLS", "010100D2.jar" to "J", "big.icon" to "I", "p/i_pack.dat" to "P"),
+            read(data),
+        )
+    }
+
+    @Test
+    fun restoreFlattenedLeavesOrdinaryNamesAlone() {
+        val files = listOf("my-game/1.jar" to b("J"), "my-game-notes.txt" to b("N"), "my-game/notes.txt" to b("X"))
+        // my-game/notes.txt가 이미 있으면 덮지 않는다
+        assertEquals(files.map { it.first }, ZipLayout.restoreFlattened(files).map { it.first })
+        // 옆에 같은 이름의 폴더가 없으면 그대로
+        assertEquals(listOf("a-b.txt", "c/d"), ZipLayout.restoreFlattened(listOf("a-b.txt" to b(""), "c/d" to b(""))).map { it.first })
+        // 폴더 이름에 '-'가 있어도 가장 긴 폴더 이름으로
+        assertEquals(
+            listOf("x-y/__adf__", "x-y/1.jar"),
+            ZipLayout.restoreFlattened(listOf("x-y-__adf__" to b(""), "x-y/1.jar" to b(""))).map { it.first },
+        )
+    }
 }

@@ -63,7 +63,7 @@ object ZipLayout {
      */
     fun fromFolder(folderName: String, files: List<Pair<String, ByteArray>>): Pair<String, ByteArray>? {
         if (files.isEmpty()) return null
-        var entries = files
+        var entries = restoreFlattened(files)
         // 표시 파일이 있는 폴더가 게임 폴더(밖의 파일은 버림), 없으면 모두를 감싼 폴더를 한 겹씩 벗긴다
         val markerDirs = markerDirs(entries.map { it.first })
         if (markerDirs.size == 1) {
@@ -83,6 +83,37 @@ object ZipLayout {
 
         val name = folderName.ifBlank { "game" }
         return "$name.zip" to pack(entries)
+    }
+
+    /**
+     * 압축 해제 앱이 폴더 밖으로 꺼내며 이름을 바꾼 파일을 제자리로: `X-이름`이 있고 옆에 폴더 `X/`가 있으면 `X/이름`.
+     * 실기기(이노티아 연대기2): 휴대폰 파일 앱이 zip을 풀면서 확장자 없는 `__adf__`·`__class__`만
+     * `이노티아연대기2-wipi1.2-__adf__`처럼 폴더 밖에 두었다 → 게임 폴더에 __adf__가 없어 형식을 못 알아봄.
+     * 같은 경로의 파일이 이미 있으면 그대로 둔다.
+     */
+    fun restoreFlattened(files: List<Pair<String, ByteArray>>): List<Pair<String, ByteArray>> {
+        val dirs = files.flatMap { (path, _) ->
+            path.indices.filter { path[it] == '/' }.map { path.substring(0, it) }
+        }.toSet()
+        if (dirs.isEmpty()) return files
+        val paths = files.map { it.first }.toMutableSet()
+        return files.map { (path, data) ->
+            val parent = path.substring(0, path.lastIndexOf('/') + 1)
+            val base = path.removePrefix(parent)
+            // 가장 긴 폴더 이름부터(폴더 이름 자체에 '-'가 있을 수 있다)
+            val target = dirs
+                .filter { it.startsWith(parent) && '/' !in it.removePrefix(parent) }
+                .map { it.removePrefix(parent) }
+                .filter { d -> base.length > d.length + 1 && base.startsWith("$d-") }
+                .maxByOrNull { it.length }
+                ?.let { d -> "$parent$d/${base.removePrefix("$d-")}" }
+            if (target != null && target !in paths) {
+                paths += target
+                target to data
+            } else {
+                path to data
+            }
+        }
     }
 
     /** 코어가 플랫폼을 알아보는 표시 파일: KTF `__adf__`, LGT `app_info`, SKT `*.msd`, J2ME(ez-java) `*.jad` */
