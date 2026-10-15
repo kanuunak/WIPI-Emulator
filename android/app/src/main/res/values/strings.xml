@@ -68,8 +68,14 @@
     <string name="diag_failed">Couldn\'t create the diagnostic log</string>
     <string name="settings_screen_header">Screen</string>
     <string name="settings_layout">Game layout</string>
-    <string name="settings_layout_desc">Auto: game above the keypad on narrow screens (cover), keypad split to both sides on wide screens (unfolded, landscape)</string>
+    <string name="settings_layout_desc">Auto: game above the keypad on narrow screens (cover), keypad split to both sides on wide screens (unfolded, landscape). To place things yourself: pause the game → Edit layout (a saved layout takes priority on that screen).</string>
     <string name="settings_layout_auto">Auto</string>
     <string name="settings_layout_stack">Stacked</string>
     <string name="settings_layout_split">Split</string>
+    <string name="emulator_edit_layout">Edit layout</string>
+    <string name="editor_split">Split keypad</string>
+    <string name="editor_merge">Merge keypad</string>
+    <string name="editor_reset">Default</string>
+    <string name="editor_save">Save</string>
+    <string name="editor_hint">Drag to move · drag the ● corner to resize · saved for this screen shape</string>
 </resources>

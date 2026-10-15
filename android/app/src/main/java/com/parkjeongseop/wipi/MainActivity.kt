@@ -55,6 +55,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -64,6 +65,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -114,6 +116,9 @@ class MainActivity : ComponentActivity() {
 
     /** 게임 화면 배치 설정(설정 오버레이에서 바꾸면 바로 다시 배치) */
     private var layoutMode by mutableStateOf(LayoutMode.AUTO)
+
+    /** 배치 편집으로 저장·삭제할 때마다 증가 → 저장한 배치를 다시 읽는다 */
+    private var customLayoutVersion by mutableIntStateOf(0)
 
     /** 에뮬 화면에서만 하드웨어 키를 게임으로 전달 (화면 = 세션 유무에서 파생) */
     private val emulatorActive: Boolean get() = EmulatorSession.activeGame != null
@@ -463,6 +468,7 @@ class MainActivity : ComponentActivity() {
         // 첫 프레임 도착 여부만 구독 (frameVersion 자체를 컴포지션에서 읽으면 매 프레임 재구성된다)
         val hasFrame by remember { derivedStateOf { EmulatorSession.frameVersion > 0 } }
         var showHud by rememberSaveable { mutableStateOf(false) } // 레이아웃 HUD, 기본 꺼짐
+        var editing by rememberSaveable { mutableStateOf(false) } // 배치 편집(일시정지 메뉴에서)
 
         // 앱 CPU 사용률: HUD가 켜져 있을 때만 1초마다 /proc/self/stat·task/*/stat을 읽는다(발열 확인용, 코어 하나 = 100%).
         // 둘째 줄 = 많이 쓰는 스레드(wie-emulator = 에뮬, RenderThread·main = 화면, 그 외 오디오 등)
@@ -496,12 +502,36 @@ class MainActivity : ComponentActivity() {
             // 안쪽: 안전 영역(safeDrawing 인셋 제외) 안에서 명세 §5.3 계산 결과대로 배치
             BoxWithConstraints(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 val density = LocalDensity.current.density
-                val layout = remember(maxWidth, maxHeight, density, layoutMode) {
-                    computeScreenLayout(layoutMode, maxWidth.value, maxHeight.value, density)
+                // 이 화면 크기에 저장한 배치(배치 편집)가 있으면 그것, 없으면 설정(자동/위아래/좌우)대로 계산
+                val layoutKey = CustomLayout.key(maxWidth.value, maxHeight.value)
+                val custom = remember(layoutKey, customLayoutVersion) { settings.customLayout(layoutKey)?.let(CustomLayout::parse) }
+                val layout = remember(maxWidth, maxHeight, density, layoutMode, custom) {
+                    custom?.toScreenLayout(maxWidth.value, maxHeight.value, density)
+                        ?: computeScreenLayout(layoutMode, maxWidth.value, maxHeight.value, density)
                 }
                 val metrics = layoutMetrics(windowW, windowH, layout)
                 LaunchedEffect(metrics) { Log.i(LOG_TAG, metrics.logLine) }
 
+                if (editing) {
+                    LayoutEditor(
+                        initial = CustomLayout.from(layout),
+                        availWdp = maxWidth.value,
+                        availHdp = maxHeight.value,
+                        frame = frameImage,
+                        hasFrame = hasFrame,
+                        onSave = {
+                            settings.setCustomLayout(layoutKey, it.serialize())
+                            customLayoutVersion++
+                            editing = false
+                        },
+                        onCancel = { editing = false },
+                        onReset = {
+                            settings.setCustomLayout(layoutKey, null)
+                            customLayoutVersion++
+                            editing = false
+                        },
+                    )
+                } else {
                 // 게임: draw 단계에서만 frameVersion을 읽어 새 프레임마다 다시 그리기만 한다
                 Canvas(modifier = Modifier.offset(layout.game.left.dp, layout.game.top.dp).size(layout.game.width.dp, layout.game.height.dp)) {
                     if (EmulatorSession.frameVersion > 0) {
@@ -554,9 +584,10 @@ class MainActivity : ComponentActivity() {
                         Icon(Icons.Filled.Settings, stringResource(R.string.action_settings), tint = Color.White.copy(alpha = 0.6f))
                     }
                 }
+                }
             }
 
-            if (paused) {
+            if (paused && !editing) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -573,7 +604,11 @@ class MainActivity : ComponentActivity() {
                         )
                         Text(stringResource(R.string.emulator_paused), color = Color.White, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp))
                         Text(stringResource(R.string.emulator_resume_hint), color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
-                        Button(onClick = onExit, modifier = Modifier.padding(top = 24.dp)) {
+                        // 배치 편집: 게임은 일시정지된 채로 편집 화면을 연다(닫으면 다시 이 메뉴)
+                        OutlinedButton(onClick = { editing = true }, modifier = Modifier.padding(top = 24.dp)) {
+                            Text(stringResource(R.string.emulator_edit_layout), color = Color.White)
+                        }
+                        Button(onClick = onExit, modifier = Modifier.padding(top = 12.dp)) {
                             Text(stringResource(R.string.emulator_exit))
                         }
                     }

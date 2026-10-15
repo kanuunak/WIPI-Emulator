@@ -9,8 +9,8 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** 설정의 배치 선택. AUTO는 [computeScreenLayout]이 화면 모양으로 고른다. */
-enum class LayoutMode { AUTO, STACK, SPLIT }
+/** 설정의 배치 선택(AUTO·STACK·SPLIT). AUTO는 [computeScreenLayout]이 화면 모양으로 고른다. CUSTOM = 배치 편집으로 저장한 것(결과 표시용). */
+enum class LayoutMode { AUTO, STACK, SPLIT, CUSTOM }
 
 /** 키패드 한 덩어리: 화면 위치(바깥 여백 포함)와 그 안의 키 행들([KeypadModel.ROWS]의 일부 또는 전부) */
 data class PadPlacement(val rect: RectDp, val rows: List<List<KeyDef>>)

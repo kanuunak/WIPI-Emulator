@@ -81,6 +81,14 @@ class Settings(context: Context) {
         get() = runCatching { LayoutMode.valueOf(prefs.getString("layoutMode", null) ?: "AUTO") }.getOrDefault(LayoutMode.AUTO)
         set(value) = prefs.edit { putString("layoutMode", value.name) }
 
+    /** 배치 편집으로 저장한 배치(화면 크기 키별, [CustomLayout.serialize]). 없으면 null */
+    fun customLayout(key: String): String? = prefs.getString("customLayout.$key", null)
+
+    /** null이면 삭제(자동 배치로) */
+    fun setCustomLayout(key: String, value: String?) = prefs.edit {
+        if (value == null) remove("customLayout.$key") else putString("customLayout.$key", value)
+    }
+
     /** 현재 설정 기준 유효 볼륨 (pcm, midi — 사운드 off면 0) */
     fun effectiveVolumes(): Pair<Float, Float> =
         if (soundEnabled) pcmVolume to midiVolume else 0f to 0f

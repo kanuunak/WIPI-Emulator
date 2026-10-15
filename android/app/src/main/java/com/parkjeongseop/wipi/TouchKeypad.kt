@@ -27,6 +27,8 @@ import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -148,23 +150,42 @@ fun TouchKeypad(
                     }
                 },
         ) {
-            val corner = CornerRadius(KEY_CORNER_DP.dp.toPx())
-            val down = pressed
-            layout.keys.forEachIndexed { i, r ->
-                drawRoundRect(
-                    color = KEY_COLOR,
-                    topLeft = Offset(r.left, r.top),
-                    size = Size(r.right - r.left, r.bottom - r.top),
-                    cornerRadius = corner,
-                    alpha = if (r.key.code in down) KEY_PRESSED_ALPHA else 1f,
-                )
-                val label = labels[i]
-                drawText(
-                    label,
-                    topLeft = Offset(r.centerX - label.size.width / 2f, r.centerY - label.size.height / 2f),
-                )
-            }
+            drawKeys(layout, labels, pressed)
         }
+    }
+}
+
+/** 키 그리기(터치 키패드와 배치 편집 미리보기가 같이 쓴다) */
+private fun DrawScope.drawKeys(layout: KeypadLayout, labels: List<TextLayoutResult>, down: Set<String>) {
+    val corner = CornerRadius(KEY_CORNER_DP.dp.toPx())
+    layout.keys.forEachIndexed { i, r ->
+        drawRoundRect(
+            color = KEY_COLOR,
+            topLeft = Offset(r.left, r.top),
+            size = Size(r.right - r.left, r.bottom - r.top),
+            cornerRadius = corner,
+            alpha = if (r.key.code in down) KEY_PRESSED_ALPHA else 1f,
+        )
+        val label = labels[i]
+        drawText(
+            label,
+            topLeft = Offset(r.centerX - label.size.width / 2f, r.centerY - label.size.height / 2f),
+        )
+    }
+}
+
+/** 입력을 받지 않는 키패드 그림(배치 편집용). 크기는 호출자가 정한다. */
+@Composable
+fun KeypadPreview(rows: List<List<KeyDef>>, modifier: Modifier = Modifier) {
+    val textMeasurer = rememberTextMeasurer()
+    val labelStyle = TextStyle(color = Color.White, fontSize = 16.sp)
+    BoxWithConstraints(modifier = modifier) {
+        val density = LocalDensity.current.density
+        val widthPx = constraints.maxWidth.toFloat()
+        val heightPx = constraints.maxHeight.toFloat()
+        val layout = remember(widthPx, heightPx, density, rows) { KeypadModel.layout(widthPx, heightPx, KeypadMetrics(density), rows) }
+        val labels = remember(layout, textMeasurer) { layout.keys.map { textMeasurer.measure(it.key.label, labelStyle) } }
+        Canvas(modifier = Modifier.fillMaxSize()) { drawKeys(layout, labels, emptySet()) }
     }
 }
 
