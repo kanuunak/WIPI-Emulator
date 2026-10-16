@@ -77,8 +77,8 @@ cd android && ./gradlew :app:assembleDebug    # APK
 
 ## 테스트한 기기
 
-- Samsung Galaxy Z Fold5 — 커버 화면(344 × 882dp) / 펼친 화면 세로·가로, 제스처 내비게이션. 측정값: [`docs/fold-retro/DEVICE_METRICS.md`](docs/fold-retro/DEVICE_METRICS.md)
-- OS 버전: (사용자 확인 필요)
+- Samsung Galaxy Z Fold5(SM-F946N) — 커버 화면(344 × 882dp) / 펼친 화면 세로·가로, 제스처·3버튼 내비게이션. 측정값: [`docs/fold-retro/DEVICE_METRICS.md`](docs/fold-retro/DEVICE_METRICS.md)
+- One UI 8.5 / Android 16 (빌드 BP4A.251205.006.F946NKSS6GZI2)
 
 ## 라이선스
 
