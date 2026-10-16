@@ -32,7 +32,7 @@
 | `android/app/src/test/java/com/parkjeongseop/wipi/` | JVM 단위 테스트 |
 | `rust/wipi_core/src/session.rs` | 전역 단일 세션, 키 중복 무시 + 100ms 반복, 일시정지 |
 | `rust/wipi_android/src/bin/headless.rs` | UI 없는 실행 하니스(호스트에서 실행 가능) |
-| `demo/` | `demo.jar`(J2ME), `demo_wipi.zip`(KTF WIPI-C), `keytest/`(키 검증 MIDlet), `skins/`(코드로 그린 기본 스킨 — `make_skins.py`가 앱 `assets/skins/*.zip`도 만든다) |
+| `demo/` | `demo.jar`(J2ME), `demo_wipi.zip`(KTF WIPI-C), `keytest/`(키 검증 MIDlet), `skins/`(코드로 그린 기본 스킨 — `make_skins.py`가 앱 `assets/skins/*.zip`도 만든다, `skin_compose.py` = 사진 스킨 "플레이용 재조립" 도구) |
 | `scripts/` | Rust → .so 빌드 스크립트 |
 
 ## 빌드
