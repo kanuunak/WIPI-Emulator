@@ -183,7 +183,7 @@ demo/                                  자체 데모 demo.jar(J2ME), demo_wipi.z
 - 게임 화면 몰입 모드(시스템 바 숨김, 스와이프 시 잠깐 표시). 제스처 제외 200dp 한도도 풀린다.
 - ⏸·⚙ 아이콘 배치 선택(게임 위 오버레이 / 전용 줄).
 - 슬라이드 시 햅틱 틱, 키 라벨·색 다듬기, 앱 아이콘 교체.
-- **배포 전 필수**: 전체 오픈소스 고지 자동 생성(Rust: `cargo about`, Android: AndroidX/Compose/Kotlin).
+- ~~**배포 전 필수**: 전체 오픈소스 고지 자동 생성(Rust: `cargo about`, Android: AndroidX/Compose/Kotlin).~~ Phase 4에서 새 도구 없이 완료: `scripts/gen-licenses.py`(cargo metadata + Gradle) → 앱 고지 "Rust / Android".
 
 ### 4.3 P2 — 후순위
 
@@ -434,21 +434,42 @@ EmulatorLayout
 | T11 | 백그라운드에서 `adb shell am kill <appId>` 후 재실행 | 라이브러리부터, 크래시 없음, 게임 세이브 유지 |
 | T12 | 회귀: 임포트·삭제·사운드/진동 설정·고지 화면·게임패드 | 원본과 동일 |
 
+**Phase 3.5~3.6에서 늘어난 기능의 회귀 행** (2026-10-16 추가. 괄호 = 마지막 실기기 통과 빌드)
+
+| ID | 시나리오 | 통과 기준 |
+|---|---|---|
+| T13 | 펼친 화면 가로에서 배치 자동 / 좌우 분할 / 위아래 | 좌우 분할: 게임 높이 가득, 키패드 양옆, ⏸⚙ 게임 밖 (Debug 24) |
+| T14 | 배치 편집: 끌기·● 크기·나누기/합치기 → 저장 → 앱 재시작·접기/펴기 → [기본값] | 화면 모양별로 저장 배치 유지, [기본값]이면 자동 배치 (편집 Debug 25 / 유지 확인 남음) |
+| T15 | 화면 필터 5종(선명·부드럽게·스캔라인·LCD·업스케일), 커버와 펼친 화면 | 스캔라인·LCD가 원본 픽셀마다 고르게, 업스케일 프레임 갱신 (펼친 화면 Debug 27 / 커버 남음) |
+| T16 | 키패드 테마 4종 + 모양·글자 크기·불투명도, 배치 편집 미리보기 | 글자가 항상 보임, 눌림 표시, 재시작 뒤 유지 (Debug 30) |
+| T17 | 스킨: 기본 2종(커버 세로·펼친 가로), zip 가져오기(실패 시 오류 원문·복사)·삭제, 키 영역 표시, 스킨 없음으로 복귀 | 키 누름·눌린 그림·방향키 미끄러짐, ⏸⚙ 보임, 재시작 뒤 유지 (Debug 31~33) |
+| T18 | 배경 이미지 고르기·바꾸기·지우기, 어둡게 | 스킨 밖·키패드 뒤에 깔림, 재시작 뒤 유지 (Debug 34) |
+| T19 | 게임별 설정: A에서 "이 게임에만 적용" 켜고 스킨·필터 변경 → B 실행 → 앱 재시작 → A에서 끄기 | B는 공통 설정, A는 재시작 뒤 유지, 끄면 공통으로 (Debug 34) |
+| T20 | 임포트: zip, 폴더로 감싼 zip, 게임 폴더째, 압축 해제 앱이 흩어 놓은 폴더 | 라이브러리에 표시·실행 (Debug 23) |
+| T21 | 오류 배너 → [진단 로그] 파일로 저장·공유, ⚙ 길게 = HUD(CPU) | 파일에 앱·기기·오류 원문·logcat (Debug 18) |
+| T22 | 설정 > 정보 > 오픈소스 라이선스 > Rust / Android | 자동 생성 목록이 열리고 스크롤됨 |
+
 ---
 
 ## 8. MVP 승인 기준
 
-- [ ] 깨끗한 체크아웃에서 `docs/fold-retro/BUILD.md`대로 APK가 만들어진다(실제 로그 첨부).
-- [ ] CI(android-debug)가 성공하고, 드래프트 릴리스 APK가 Fold5에 덮어쓰기 설치된다(게임·세이브 유지).
-- [ ] .so 16KB 정렬 확인 결과가 기록돼 있다.
-- [ ] Play 원본과 동시 설치되고, 앱 이름이 구분된다.
-- [ ] `testDebugUnitTest`가 통과하고, §7.2 케이스가 모두 있다.
-- [ ] KeyTest 판정표 전 항목 통과(실기기).
-- [ ] T4·T5에서 게임이 종료되지 않는다.
-- [ ] Fold5 커버에서 게임 비율이 정확하고, 키가 내비게이션·제스처 영역과 겹치지 않는다(스크린샷).
-- [ ] 일시정지·백그라운드에서 BGM이 멈춘다.
-- [ ] 포크가 `rust/`를 바꾸지 않았다(`git diff --stat <기준> -- rust/`가 비어 있음. 기준은 처음엔 `43a6098`, 업스트림으로 rebase한 뒤엔 `git merge-base HEAD upstream/main`).
-- [ ] T12 회귀 없음, 알려진 제한이 README에 적혀 있다.
+판정 2026-10-16(Phase 4). **에이전트** = 세션 안에서 직접 확인, **사용자** = 실기기 확인(결과는 인계 문서에 기록된 것).
+
+| 기준 | 판정 | 근거 |
+|---|---|---|
+| 깨끗한 체크아웃에서 BUILD.md대로 APK가 만들어진다 | ✅ 에이전트(CI) | CI는 매 실행 깨끗한 체크아웃에서 BUILD.md 절차(.so → 테스트 → APK). 세션 안에서는 .so가 없어 단위 테스트·컴파일까지만(BUILD.md 1절) |
+| CI 성공, 드래프트 APK가 Fold5에 덮어쓰기 설치(게임·세이브 유지) | ✅ 에이전트 + 사용자 | android-debug 성공(Debug 34 등), 고정 키로 Debug 1~34 덮어쓰기 설치해 옴 |
+| .so 16KB 정렬 기록 | ✅ 에이전트 | Debug 34 APK: `libwipi_android.so` LOAD 4개 모두 Align `0x4000`, `zipalign -c -P 16` 통과 |
+| Play 원본과 동시 설치, 앱 이름 구분 | ✅ 에이전트(이름·ID) / ⬜ 사용자(동시 설치 기록 없음) | `aapt2 dump badging`: package `com.knifecrab.foldretro`, label "Fold Retro"/"폴드 레트로"(원본 `com.parkjeongseop.wipi`) — ID가 달라 설치 충돌은 없다 |
+| `testDebugUnitTest` 통과, §7.2 케이스 존재 | ✅ 에이전트 | 117개 통과(허브·히트테스트·레이아웃·배치 편집·필터·테마·스킨·게임별 설정·고지) |
+| KeyTest 판정표 전 항목(실기기) | ✅ 사용자 | Debug 10·12(HANDOFF_Phase3 §3) |
+| T4·T5에서 게임이 종료되지 않음 | ⬜ 사용자(판정 기록 없음) | 코드: configChanges·onDestroy 가드(Phase 1). 관련 기록은 KeyTest i(접기 → HELD:0, Debug 10)뿐 — T4·T5(계속 사용 켬/끔)를 Phase 4 APK로 한 번 |
+| 커버에서 게임 비율 정확, 키가 내비·제스처 영역과 안 겹침 | ✅ 사용자 | DEVICE_METRICS.md(Debug 7 HUD), 이후 커버 스크린샷 |
+| 일시정지·백그라운드에서 BGM 멈춤 | ⬜ 사용자(판정 기록 없음) | 코드: EmulatorSession.pause → 볼륨 0, resume → 설정 볼륨(Phase 1) |
+| 포크가 `rust/`를 바꾸지 않음 | ⚠️ 승인된 예외만 | `git diff --stat 43a6098 -- rust/` = session.rs(tick 1ms)·Cargo.toml·Cargo.lock(wie 출처 줄 13개). 모두 사용자 승인(AGENTS.md 규칙 1) |
+| T12 회귀 없음, 알려진 제한이 README에 | ✅ 에이전트(README) / 사용자(T12) | README_FORK.md "알려진 제한". T12는 Phase 3.6까지 실사용에서 문제 보고 없음 — Phase 4 APK로 T12·T22 한 번 더 |
+
+**남은 사용자 확인**: T4·T5·BGM 멈춤(기록 없음), 원본과 동시 설치, T12 + T22(Phase 4 APK), T14 접기/펴기 뒤 유지, T15 커버, (선택) 3버튼 내비게이션·T9 게임패드.
 
 ---
 
@@ -459,8 +480,8 @@ EmulatorLayout
 | WIPI-Emulator 코드 | MIT, © 2026 Park Jeongseop | [확인] `LICENSE` |
 | wie | MIT, © 2020 Inseok Lee + 출처 표기 권장 문구("This project is based on wie …") | [확인] |
 | RustJava, smaf | MIT (Inseok Lee) | [확인] 크레이트 메타데이터 |
-| .so에 들어가는 Rust 크레이트 164개 | 전부 허용형: MIT, Apache-2.0, BSD-3, Zlib, Unicode-3.0, 0BSD, Unlicense. **GPL·LGPL·MPL 없음** | [확인] `cargo metadata`(aarch64-linux-android, 일반 의존성, proc-macro 제외) |
-| neodgm.ttf (Neo둥근모 1.530) | SIL OFL 1.1. .so에 `include_bytes!`로 내장 | [확인] 폰트 메타데이터. **앱 고지 목록에 없음** |
+| .so에 들어가는 Rust 크레이트 162개(Phase 4 재집계, 작업 공간 크레이트 제외) | 전부 허용형: MIT, Apache-2.0, BSD-3, Zlib, Unicode-3.0, 0BSD, Unlicense. **GPL·LGPL·MPL 없음** | [확인] `scripts/gen-licenses.py`(cargo metadata aarch64-linux-android, 일반 의존성, proc-macro 제외) → 앱 고지 "Rust / Android" |
+| neodgm.ttf (Neo둥근모 1.530) | SIL OFL 1.1. .so에 `include_bytes!`로 내장 | [확인] 폰트 메타데이터. 앱 고지 목록에 추가함(P0-8, Phase 0) |
 | GeneralUser GS 2.0.3 (assets, 약 32MB) | 자체 라이선스 v2.0: 소프트웨어에 포함·수정 허용. 저자가 일부 샘플의 출처를 100% 보증하지 못한다고 명시 | [확인] sf2 내장 정보 |
 | Apache-2.0 단독 크레이트 | cpal, ab_glyph, ab_glyph_rasterizer, owned_ttf_parser, zopfli | [확인] 앱 고지엔 cpal만 링크 수준 |
 

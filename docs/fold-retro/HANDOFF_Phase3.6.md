@@ -1,5 +1,7 @@
 # Phase 3.6 인계 메모 (2026-10-16)
 
+> **최신 인계는 `HANDOFF_Phase4.md`**. 이 문서는 Phase 3.6의 상태와 결정(스킨·게임별 설정)의 근거로 남긴다.
+
 다음 세션은 **이 문서부터** 읽는다. `HANDOFF_Phase3.5.md`보다 최신이다(충돌하면 이 문서 우선).
 3.5 문서는 코어 포크 절차·DRM 원칙·배치 우선순위 등 확립된 결정의 근거로 계속 유효하다.
 
@@ -42,7 +44,7 @@ PR #7(`ccr-2a4c3abb-uqwv87` → `fold-retro`)에 Phase 3.6과 Phase 4가 들어 
 
 ### Phase 4 — 회귀 · 문서 · 마감
 
-Phase 4는 이 세션에서 이어서 진행했다. 결과는 `HANDOFF_Phase4.md`(있으면 그것이 최신)를 본다. 새 세션에서 처음부터 할 때만 아래를 쓴다.
+Phase 4는 이 세션에서 이어서 끝냈다. 결과는 `HANDOFF_Phase4.md`(최신). 아래는 기록용.
 
 ```text
 [Phase 4] docs/fold-retro/HANDOFF_Phase3.6.md를 먼저 읽어. 명세 §7.4, §8, §9를 읽어.
