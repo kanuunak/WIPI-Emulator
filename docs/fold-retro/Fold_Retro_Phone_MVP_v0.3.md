@@ -460,16 +460,16 @@ EmulatorLayout
 | 깨끗한 체크아웃에서 BUILD.md대로 APK가 만들어진다 | ✅ 에이전트(CI) | CI는 매 실행 깨끗한 체크아웃에서 BUILD.md 절차(.so → 테스트 → APK). 세션 안에서는 .so가 없어 단위 테스트·컴파일까지만(BUILD.md 1절) |
 | CI 성공, 드래프트 APK가 Fold5에 덮어쓰기 설치(게임·세이브 유지) | ✅ 에이전트 + 사용자 | android-debug 성공(Debug 34 등), 고정 키로 Debug 1~34 덮어쓰기 설치해 옴 |
 | .so 16KB 정렬 기록 | ✅ 에이전트 | Debug 34 APK: `libwipi_android.so` LOAD 4개 모두 Align `0x4000`, `zipalign -c -P 16` 통과 |
-| Play 원본과 동시 설치, 앱 이름 구분 | ✅ 에이전트(이름·ID) / ⬜ 사용자(동시 설치 기록 없음) | `aapt2 dump badging`: package `com.knifecrab.foldretro`, label "Fold Retro"/"폴드 레트로"(원본 `com.parkjeongseop.wipi`) — ID가 달라 설치 충돌은 없다 |
+| Play 원본과 동시 설치, 앱 이름 구분 | ✅ 에이전트 | applicationId가 다르면 Android가 별개 앱으로 설치한다(사용자는 원본을 설치하지 않으므로 실기기 확인 생략, 2026-10-16) | `aapt2 dump badging`: package `com.knifecrab.foldretro`, label "Fold Retro"/"폴드 레트로"(원본 `com.parkjeongseop.wipi`) — ID가 달라 설치 충돌은 없다 |
 | `testDebugUnitTest` 통과, §7.2 케이스 존재 | ✅ 에이전트 | 117개 통과(허브·히트테스트·레이아웃·배치 편집·필터·테마·스킨·게임별 설정·고지) |
 | KeyTest 판정표 전 항목(실기기) | ✅ 사용자 | Debug 10·12(HANDOFF_Phase3 §3) |
-| T4·T5에서 게임이 종료되지 않음 | ⬜ 사용자(판정 기록 없음) | 코드: configChanges·onDestroy 가드(Phase 1). 관련 기록은 KeyTest i(접기 → HELD:0, Debug 10)뿐 — T4·T5(계속 사용 켬/끔)를 Phase 4 APK로 한 번 |
+| T4·T5에서 게임이 종료되지 않음 | ✅ 사용자(Debug 35) | 코드: configChanges·onDestroy 가드(Phase 1). 관련 기록은 KeyTest i(접기 → HELD:0, Debug 10)뿐 — T4·T5(계속 사용 켬/끔)를 Phase 4 APK로 한 번 |
 | 커버에서 게임 비율 정확, 키가 내비·제스처 영역과 안 겹침 | ✅ 사용자 | DEVICE_METRICS.md(Debug 7 HUD), 이후 커버 스크린샷 |
-| 일시정지·백그라운드에서 BGM 멈춤 | ⬜ 사용자(판정 기록 없음) | 코드: EmulatorSession.pause → 볼륨 0, resume → 설정 볼륨(Phase 1) |
+| 일시정지·백그라운드에서 BGM 멈춤 | ✅ 사용자(Debug 35) | 코드: EmulatorSession.pause → 볼륨 0, resume → 설정 볼륨(Phase 1) |
 | 포크가 `rust/`를 바꾸지 않음 | ⚠️ 승인된 예외만 | `git diff --stat 43a6098 -- rust/` = session.rs(tick 1ms)·Cargo.toml·Cargo.lock(wie 출처 줄 13개). 모두 사용자 승인(AGENTS.md 규칙 1) |
-| T12 회귀 없음, 알려진 제한이 README에 | ✅ 에이전트(README) / 사용자(T12) | README_FORK.md "알려진 제한". T12는 Phase 3.6까지 실사용에서 문제 보고 없음 — Phase 4 APK로 T12·T22 한 번 더 |
+| T12 회귀 없음, 알려진 제한이 README에 | ✅ 에이전트(README) + 사용자(T12·T22, Debug 35) | README_FORK.md "알려진 제한". 고지 화면 "Rust / Android" 표시 확인 |
 
-**남은 사용자 확인**: T4·T5·BGM 멈춤(기록 없음), 원본과 동시 설치, T12 + T22(Phase 4 APK), T14 접기/펴기 뒤 유지, T15 커버, (선택) 3버튼 내비게이션·T9 게임패드.
+**남은 사용자 확인**: T15 화면 필터 커버, (선택) 3버튼 내비게이션·T9 게임패드. 그 밖은 Debug 35에서 통과(2026-10-16).
 
 ---
 
