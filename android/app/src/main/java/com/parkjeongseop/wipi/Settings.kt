@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.rememberCoroutineScope
@@ -128,6 +129,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("showSkinKeyAreas", false)
         set(value) = prefs.edit { putBoolean("showSkinKeyAreas", value) }
 
+    /** 배경 이미지를 어둡게 덮는 정도(0~0.8). 밝은 사진이 게임·키를 가리지 않게 */
+    var backgroundDim: Float
+        get() = prefs.getFloat("backgroundDim", 0.3f)
+        set(value) = prefs.edit { putFloat("backgroundDim", value) }
+
     /** 배치 편집으로 저장한 배치(화면 크기 키별, [CustomLayout.serialize]). 없으면 null */
     fun customLayout(key: String): String? = prefs.getString("customLayout.$key", null)
 
@@ -155,6 +161,8 @@ fun SettingsFlow(
     skinStore: SkinStore,
     onSkinChanged: (String) -> Unit,
     onSkinKeyAreasChanged: (Boolean) -> Unit,
+    onBackgroundChanged: () -> Unit,
+    onBackgroundDimChanged: (Float) -> Unit,
     onDiagnostics: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -184,6 +192,8 @@ fun SettingsFlow(
             skinStore = skinStore,
             onSkinChanged = onSkinChanged,
             onSkinKeyAreasChanged = onSkinKeyAreasChanged,
+            onBackgroundChanged = onBackgroundChanged,
+            onBackgroundDimChanged = onBackgroundDimChanged,
             onDiagnostics = onDiagnostics,
             onShowLicenses = { page = SettingsPage.Licenses },
             onBack = onClose,
@@ -230,6 +240,8 @@ private fun SettingsPage(
     skinStore: SkinStore,
     onSkinChanged: (String) -> Unit,
     onSkinKeyAreasChanged: (Boolean) -> Unit,
+    onBackgroundChanged: () -> Unit,
+    onBackgroundDimChanged: (Float) -> Unit,
     onDiagnostics: () -> Unit,
     onShowLicenses: () -> Unit,
     onBack: () -> Unit,
@@ -404,6 +416,15 @@ private fun SettingsPage(
                 onShowKeyAreas = {
                     settings.showSkinKeyAreas = it
                     onSkinKeyAreasChanged(it)
+                },
+            )
+            BackgroundItem(
+                store = skinStore,
+                dim = settings.backgroundDim,
+                onChanged = onBackgroundChanged,
+                onDimChanged = {
+                    settings.backgroundDim = it
+                    onBackgroundDimChanged(it)
                 },
             )
             // 키패드 테마는 스킨이 없을 때만 쓴다(스킨은 키 그림까지 정한다)
@@ -610,6 +631,56 @@ private fun SkinItem(
             dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
+}
+
+/** 배경 이미지: 스킨 그림 밖 여백과 키패드 뒤에 까는 사진(가운데 맞춰 꽉 채움) + 어둡게 */
+@Composable
+private fun BackgroundItem(store: SkinStore, dim: Float, onChanged: () -> Unit, onDimChanged: (Float) -> Unit) {
+    var has by remember { mutableStateOf(store.hasBackground) }
+    var dimValue by remember { mutableStateOf(dim) }
+    var failed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { store.importBackground(uri) }
+            has = store.hasBackground
+            failed = !ok
+            if (ok) onChanged()
+        }
+    }
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.settings_background)) },
+        supportingContent = {
+            Column {
+                Text(stringResource(R.string.settings_background_desc))
+                if (failed) Text(stringResource(R.string.settings_background_failed), color = MaterialTheme.colorScheme.error)
+                Row {
+                    TextButton(onClick = { picker.launch(arrayOf("image/*")) }) {
+                        Text(stringResource(if (has) R.string.settings_background_change else R.string.settings_background_pick))
+                    }
+                    if (has) {
+                        TextButton(onClick = {
+                            store.clearBackground()
+                            has = false
+                            onChanged()
+                        }) { Text(stringResource(R.string.settings_background_clear)) }
+                    }
+                }
+                if (has) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.settings_background_dim), modifier = Modifier.weight(1f))
+                        Text("${(dimValue * 100).roundToInt()}%")
+                    }
+                    Slider(value = dimValue, valueRange = 0f..0.8f, onValueChange = {
+                        dimValue = it
+                        onDimChanged(it)
+                    })
+                }
+            }
+        },
+        leadingContent = { Icon(Icons.Filled.Wallpaper, null) },
+    )
 }
 
 @Composable

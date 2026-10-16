@@ -94,6 +94,13 @@
     <string name="settings_skin_import_failed">Could not import skin</string>
     <string name="settings_skin_import_warnings">Skin imported — please check</string>
     <string name="settings_skin_delete_title">Delete skin \"%1$s\"?</string>
+    <string name="settings_background">Background image</string>
+    <string name="settings_background_desc">A picture behind the skin and keypad (fills the screen)</string>
+    <string name="settings_background_pick">Choose image</string>
+    <string name="settings_background_change">Change</string>
+    <string name="settings_background_clear">Remove</string>
+    <string name="settings_background_dim">Darken</string>
+    <string name="settings_background_failed">Could not use that file (image up to 30 MB)</string>
     <string name="settings_keypad_theme">Keypad theme</string>
     <string name="settings_keypad_theme_desc">Key colors, shape, transparency and label size</string>
     <string name="settings_keypad_theme_gray">Basic gray</string>

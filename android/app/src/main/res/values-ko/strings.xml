@@ -94,6 +94,13 @@
     <string name="settings_skin_import_failed">스킨을 가져오지 못했어요</string>
     <string name="settings_skin_import_warnings">스킨을 가져왔어요 — 확인해 주세요</string>
     <string name="settings_skin_delete_title">스킨 \"%1$s\"을(를) 지울까요?</string>
+    <string name="settings_background">배경 이미지</string>
+    <string name="settings_background_desc">스킨과 키패드 뒤에 까는 사진 (화면을 꽉 채움)</string>
+    <string name="settings_background_pick">이미지 고르기</string>
+    <string name="settings_background_change">바꾸기</string>
+    <string name="settings_background_clear">지우기</string>
+    <string name="settings_background_dim">어둡게</string>
+    <string name="settings_background_failed">이 파일은 쓸 수 없어요 (30MB 이하 이미지)</string>
     <string name="settings_keypad_theme">키패드 테마</string>
     <string name="settings_keypad_theme_desc">키 색·모양·투명도·글자 크기</string>
     <string name="settings_keypad_theme_gray">기본 회색</string>

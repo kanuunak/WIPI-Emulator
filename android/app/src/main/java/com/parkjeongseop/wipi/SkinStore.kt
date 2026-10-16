@@ -23,7 +23,7 @@ data class SkinImportResult(val entry: SkinEntry?, val errors: List<String>, val
 /** 그리기용으로 읽은 배치 하나의 그림 */
 class SkinBitmaps(val body: Bitmap, val pressed: Bitmap?)
 
-class SkinStore(context: Context) {
+class SkinStore(private val context: Context) {
     private val root = File(context.filesDir, "skins").apply { mkdirs() }
     private val contentResolver = context.contentResolver
     private val assets = context.assets
@@ -143,6 +143,34 @@ class SkinStore(context: Context) {
         }
     }
 
+    // ── 배경 이미지(스킨 그림 밖·키패드 뒤에 까는 사진). 한 장만 filesDir/background/image에 둔다 ──
+
+    private val backgroundFile = File(File(context.filesDir, "background"), "image")
+
+    val hasBackground: Boolean get() = backgroundFile.exists()
+
+    /** SAF로 고른 그림을 복사한다. 그림이 아니거나 [MAX_BACKGROUND_BYTES]를 넘으면 false */
+    fun importBackground(uri: Uri): Boolean = try {
+        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        if (bytes != null && bytes.size <= MAX_BACKGROUND_BYTES) BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
+        if (bytes == null || bytes.size > MAX_BACKGROUND_BYTES || o.outWidth <= 0) false
+        else {
+            backgroundFile.parentFile?.mkdirs()
+            backgroundFile.writeBytes(bytes)
+            true
+        }
+    } catch (e: Exception) {
+        false
+    }
+
+    fun clearBackground() {
+        backgroundFile.delete()
+    }
+
+    /** 배경 그림(한 변 [SkinPack.MAX_IMAGE_SIDE] 이하로 줄여서). 없거나 실패하면 null */
+    fun loadBackground(): Bitmap? = decode(backgroundFile)
+
     /** 배치 하나의 그림을 읽는다(한 변 [SkinPack.MAX_IMAGE_SIDE] 이하로 줄여서). 실패하면 null */
     fun loadBitmaps(entry: SkinEntry, layout: SkinLayoutSpec): SkinBitmaps? {
         val body = decode(File(entry.dir, layout.image)) ?: return null
@@ -164,6 +192,7 @@ class SkinStore(context: Context) {
         const val MAX_ZIP_BYTES = 40L * 1024 * 1024
         const val MAX_UNZIPPED_BYTES = 80L * 1024 * 1024
         const val ASPECT_TOLERANCE = 0.02f
+        const val MAX_BACKGROUND_BYTES = 30L * 1024 * 1024
         const val BUILTIN_DIR = "skins"
         const val BUILTIN_PREFIX = "builtin-"
         private const val BUILTIN_STAMP = ".builtin"

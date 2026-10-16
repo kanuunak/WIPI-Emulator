@@ -76,6 +76,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -129,6 +131,10 @@ class MainActivity : ComponentActivity() {
     private var skinId by mutableStateOf("")
     private var showSkinKeyAreas by mutableStateOf(false)
 
+    /** 배경 이미지: 바꿀 때마다 증가 → 다시 읽는다. 어둡게 덮는 정도 */
+    private var backgroundVersion by mutableIntStateOf(0)
+    private var backgroundDim by mutableStateOf(0.3f)
+
     /** 배치 편집으로 저장·삭제할 때마다 증가 → 저장한 배치를 다시 읽는다 */
     private var customLayoutVersion by mutableIntStateOf(0)
 
@@ -149,6 +155,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch(Dispatchers.IO) { skinStore.installBuiltIns() }
         skinId = settings.skinId
         showSkinKeyAreas = settings.showSkinKeyAreas
+        backgroundDim = settings.backgroundDim
 
         setContent {
             WipiTheme {
@@ -233,6 +240,8 @@ class MainActivity : ComponentActivity() {
                     skinStore = skinStore,
                     onSkinChanged = { skinId = it },
                     onSkinKeyAreasChanged = { showSkinKeyAreas = it },
+                    onBackgroundChanged = { backgroundVersion++ },
+                    onBackgroundDimChanged = { backgroundDim = it },
                     onDiagnostics = { showDiagnostics = true },
                     onClose = { showSettings = false },
                 )
@@ -544,8 +553,17 @@ class MainActivity : ComponentActivity() {
         // 스킨(설정 > 화면 > 스킨): 고른 팩을 읽어 둔다. 배치는 화면 모양에 가장 가까운 것 — 그림은 배치가 바뀔 때만 다시 읽는다
         val skinEntry = remember(skinId) { skinStore.get(skinId) }
 
+        // 배경 이미지(설정 > 화면 > 배경 이미지) — 없으면 null
+        val background by produceState<ImageBitmap?>(null, backgroundVersion) {
+            value = withContext(Dispatchers.IO) { skinStore.loadBackground()?.asImageBitmap() }
+        }
+
         // 바깥: 시스템 바 뒤까지 배경을 칠한다(edge-to-edge). 크기 = 창(콘텐츠) 크기
         BoxWithConstraints(modifier = Modifier.fillMaxSize().background(EMULATOR_BG)) {
+            background?.let { bg ->
+                Image(bg, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                if (backgroundDim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = backgroundDim)))
+            }
             val windowW = maxWidth.value
             val windowH = maxHeight.value
 
@@ -599,6 +617,7 @@ class MainActivity : ComponentActivity() {
                         onFeedback = { if (settings.keypadHaptics) haptics.keyTap() },
                         onTrace = InputTrace::add,
                         showKeyAreas = showSkinKeyAreas,
+                        fillBackground = background == null,
                         drawGame = { if (EmulatorSession.frameVersion > 0) with(renderer) { draw(frameImage, screenFilter) } },
                         iconsWdp = 2 * ICON_TOUCH_DP,
                         iconsHdp = ICON_TOUCH_DP,

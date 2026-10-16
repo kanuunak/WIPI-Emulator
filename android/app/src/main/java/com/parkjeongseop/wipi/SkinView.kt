@@ -47,6 +47,7 @@ class LoadedSkin(val layout: SkinLayoutSpec, val body: ImageBitmap, val pressed:
 /**
  * @param drawGame 게임 화면 자리(정수 px 사각형)에 게임을 그린다 — 크기 = DrawScope 크기
  * @param showKeyAreas 키 영역 테두리·코드 표시(스킨 만들 때 확인용)
+ * @param fillBackground false면 그림 밖 여백을 칠하지 않는다(뒤에 사용자 배경 이미지가 있을 때)
  * @param icons ⏸⚙ 묶음([iconsWdp]×[iconsHdp]) — 스킨이 정한 자리(없으면 그림 오른쪽 위)에 놓는다
  */
 @Composable
@@ -56,6 +57,7 @@ fun SkinScreen(
     onFeedback: () -> Unit,
     onTrace: (String) -> Unit,
     showKeyAreas: Boolean,
+    fillBackground: Boolean,
     drawGame: DrawScope.() -> Unit,
     iconsWdp: Float,
     iconsHdp: Float,
@@ -88,7 +90,7 @@ fun SkinScreen(
                 },
         ) {
             val layout = placement.layout
-            drawRect(Color(layout.background))
+            if (fillBackground) drawRect(Color(layout.background))
             val img = placement.image
             val dstOffset = IntOffset(img.left.roundToInt(), img.top.roundToInt())
             val dstSize = IntSize(img.width.roundToInt(), img.height.roundToInt())
