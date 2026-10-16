@@ -68,12 +68,16 @@
     <string name="diag_saved">Diagnostic log saved</string>
     <string name="diag_failed">Couldn\'t create the diagnostic log</string>
     <string name="settings_screen_header">Screen</string>
+    <string name="settings_screen_game_scope">Screen settings below apply only to %1$s (turn off in the pause menu)</string>
     <string name="settings_layout">Game layout</string>
     <string name="settings_layout_desc">Auto: game above the keypad on narrow screens (cover), keypad split to both sides on wide screens (unfolded, landscape). To place things yourself: pause the game → Edit layout (a saved layout takes priority on that screen).</string>
     <string name="settings_layout_auto">Auto</string>
     <string name="settings_layout_stack">Stacked</string>
     <string name="settings_layout_split">Split</string>
     <string name="emulator_edit_layout">Edit layout</string>
+    <string name="emulator_game_only">Only for this game</string>
+    <string name="emulator_game_only_on">Skin, theme, layout and filter are this game\'s own</string>
+    <string name="emulator_game_only_off">Using the common screen settings</string>
     <string name="editor_split">Split keypad</string>
     <string name="editor_merge">Merge keypad</string>
     <string name="editor_reset">Default</string>

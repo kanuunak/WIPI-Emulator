@@ -57,6 +57,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -148,12 +149,9 @@ class MainActivity : ComponentActivity() {
         library = GameLibrary(this)
         settings = Settings(this)
         haptics = Haptics(this)
-        layoutMode = settings.layoutMode
-        screenFilter = settings.screenFilter
-        keypadTheme = settings.keypadTheme
+        reloadScreenSettings()
         skinStore = SkinStore(this)
         lifecycleScope.launch(Dispatchers.IO) { skinStore.installBuiltIns() }
-        skinId = settings.skinId
         showSkinKeyAreas = settings.showSkinKeyAreas
         backgroundDim = settings.backgroundDim
 
@@ -164,6 +162,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** 화면 설정(게임별로 따로 둘 수 있는 것)을 지금 범위에서 다시 읽는다 */
+    private fun reloadScreenSettings() {
+        layoutMode = settings.layoutMode
+        screenFilter = settings.screenFilter
+        keypadTheme = settings.keypadTheme
+        skinId = settings.skinId
+        customLayoutVersion++
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         // 구성 변경(접기·펴기 등)이나 시스템의 Activity 파괴에서는 세션을 유지한다 — 이미 ON_PAUSE에서 일시정지·음소거됨
@@ -172,6 +179,12 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun WipiApp() {
+        // 게임을 시작·종료할 때 화면 설정의 범위(게임별/전체)를 바꾸고 다시 읽는다
+        val activeGameId = EmulatorSession.activeGame?.id
+        LaunchedEffect(activeGameId) {
+            settings.activeGameId = activeGameId
+            reloadScreenSettings()
+        }
         var games by remember { mutableStateOf(library.list()) }
         var errorMessage by remember { mutableStateOf<UiError?>(null) }
         var showSettings by remember { mutableStateOf(false) } // iOS sheet 대응 오버레이
@@ -212,6 +225,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onDelete = { entry ->
                         library.delete(entry)
+                        settings.forgetGame(entry.id)
                         games = library.list()
                     },
                     onSettings = { showSettings = true },
@@ -688,6 +702,28 @@ class MainActivity : ComponentActivity() {
                         }
                         Button(onClick = onExit, modifier = Modifier.padding(top = if (skinEntry == null) 12.dp else 24.dp)) {
                             Text(stringResource(R.string.emulator_exit))
+                        }
+                        // 이 게임에만 적용: 켜면 지금 화면 설정(스킨·테마·배치·필터)을 이 게임 몫으로, 끄면 전체 설정으로
+                        EmulatorSession.activeGame?.let { game ->
+                            var gameOnly by remember(game.id) { mutableStateOf(settings.isGameOverride(game.id)) }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 20.dp),
+                            ) {
+                                Column(modifier = Modifier.padding(end = 12.dp)) {
+                                    Text(stringResource(R.string.emulator_game_only), color = Color.White, fontSize = 15.sp)
+                                    Text(
+                                        stringResource(if (gameOnly) R.string.emulator_game_only_on else R.string.emulator_game_only_off),
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Switch(checked = gameOnly, onCheckedChange = {
+                                    gameOnly = it
+                                    settings.setGameOverride(game.id, it)
+                                    reloadScreenSettings()
+                                })
+                            }
                         }
                     }
                 }

@@ -80,6 +80,40 @@ import kotlin.math.roundToInt
 class Settings(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
+    private val store = object : KeyValueStore {
+        override fun keys(): Set<String> = prefs.all.keys
+        override fun get(key: String): Any? = prefs.all[key]
+        override fun put(key: String, value: Any?) = prefs.edit {
+            when (value) {
+                null -> remove(key)
+                is String -> putString(key, value)
+                is Boolean -> putBoolean(key, value)
+                is Float -> putFloat(key, value)
+                is Int -> putInt(key, value)
+                is Long -> putLong(key, value)
+                else -> putString(key, value.toString())
+            }
+        }
+    }
+
+    /** 지금 실행 중인 게임 id(없으면 null). 그 게임에 "이 게임에만 적용"이 켜져 있으면 화면 설정을 게임 키로 읽고 쓴다 */
+    var activeGameId: String? = null
+
+    /** 화면 설정의 범위: 게임 id(이 게임에만 적용 중) 또는 null(전체) */
+    val scope: String? get() = GameScope.scopeFor(store, activeGameId)
+
+    private fun k(name: String) = GameScope.key(scope, name)
+
+    fun isGameOverride(gameId: String): Boolean = GameScope.isEnabled(store, gameId)
+
+    /** "이 게임에만 적용": 켜면 지금 전체 화면 설정을 이 게임 몫으로 복사, 끄면 이 게임 몫을 지운다 */
+    fun setGameOverride(gameId: String, on: Boolean) {
+        if (on) GameScope.enable(store, gameId) else GameScope.forget(store, gameId)
+    }
+
+    /** 게임을 지울 때 그 게임 몫도 지운다 */
+    fun forgetGame(gameId: String) = GameScope.forget(store, gameId)
+
     var soundEnabled: Boolean
         get() = prefs.getBoolean("soundEnabled", true)
         set(value) = prefs.edit { putBoolean("soundEnabled", value) }
@@ -106,23 +140,23 @@ class Settings(context: Context) {
 
     /** 게임 화면 배치: 자동(화면 모양으로) / 위아래(STACK) / 좌우(SPLIT) */
     var layoutMode: LayoutMode
-        get() = runCatching { LayoutMode.valueOf(prefs.getString("layoutMode", null) ?: "AUTO") }.getOrDefault(LayoutMode.AUTO)
-        set(value) = prefs.edit { putString("layoutMode", value.name) }
+        get() = runCatching { LayoutMode.valueOf(prefs.getString(k("layoutMode"), null) ?: "AUTO") }.getOrDefault(LayoutMode.AUTO)
+        set(value) = prefs.edit { putString(k("layoutMode"), value.name) }
 
     /** 게임 화면 필터 */
     var screenFilter: ScreenFilter
-        get() = runCatching { ScreenFilter.valueOf(prefs.getString("screenFilter", null) ?: "SHARP") }.getOrDefault(ScreenFilter.SHARP)
-        set(value) = prefs.edit { putString("screenFilter", value.name) }
+        get() = runCatching { ScreenFilter.valueOf(prefs.getString(k("screenFilter"), null) ?: "SHARP") }.getOrDefault(ScreenFilter.SHARP)
+        set(value) = prefs.edit { putString(k("screenFilter"), value.name) }
 
     /** 키패드 테마(프리셋 + 모양·투명도·라벨 크기, [KeypadTheme.serialize]) */
     var keypadTheme: KeypadTheme
-        get() = KeypadTheme.parse(prefs.getString("keypadTheme", null)) ?: KeypadTheme.DEFAULT
-        set(value) = prefs.edit { putString("keypadTheme", value.serialize()) }
+        get() = KeypadTheme.parse(prefs.getString(k("keypadTheme"), null)) ?: KeypadTheme.DEFAULT
+        set(value) = prefs.edit { putString(k("keypadTheme"), value.serialize()) }
 
     /** 스킨 팩 id(SkinStore). "" = 스킨 없음(키패드 테마 + 배치 설정) */
     var skinId: String
-        get() = prefs.getString("skinId", null) ?: ""
-        set(value) = prefs.edit { putString("skinId", value) }
+        get() = prefs.getString(k("skinId"), null) ?: ""
+        set(value) = prefs.edit { putString(k("skinId"), value) }
 
     /** 스킨의 키 영역·화면 자리를 선으로 표시(스킨 만들 때 확인용) */
     var showSkinKeyAreas: Boolean
@@ -135,11 +169,12 @@ class Settings(context: Context) {
         set(value) = prefs.edit { putFloat("backgroundDim", value) }
 
     /** 배치 편집으로 저장한 배치(화면 크기 키별, [CustomLayout.serialize]). 없으면 null */
-    fun customLayout(key: String): String? = prefs.getString("customLayout.$key", null)
+    fun customLayout(key: String): String? = prefs.getString(k(GameScope.CUSTOM_LAYOUT_PREFIX + key), null)
 
     /** null이면 삭제(자동 배치로) */
     fun setCustomLayout(key: String, value: String?) = prefs.edit {
-        if (value == null) remove("customLayout.$key") else putString("customLayout.$key", value)
+        val name = k(GameScope.CUSTOM_LAYOUT_PREFIX + key)
+        if (value == null) remove(name) else putString(name, value)
     }
 
     /** 현재 설정 기준 유효 볼륨 (pcm, midi — 사운드 off면 0) */
@@ -348,6 +383,15 @@ private fun SettingsPage(
             )
 
             CategoryHeader(stringResource(R.string.settings_screen_header))
+            // 게임 중 "이 게임에만 적용"이 켜져 있으면 아래 화면 설정은 이 게임 몫이다
+            if (settings.scope != null) {
+                Text(
+                    stringResource(R.string.settings_screen_game_scope, EmulatorSession.activeGame?.name ?: ""),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_layout)) },
                 supportingContent = {
