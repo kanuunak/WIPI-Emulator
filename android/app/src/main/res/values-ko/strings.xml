@@ -54,6 +54,7 @@
     <string name="license_role_rustysynth">소프트웨어 MIDI 신시사이저</string>
     <string name="license_role_font">게임 화면 글꼴</string>
     <string name="license_role_soundfont">MIDI 사운드폰트</string>
+    <string name="license_role_generated">그 밖의 오픈소스 전체 목록 (자동 생성)</string>
     <string name="error_previous_stopping">이전 게임을 정리하는 중이에요. 잠시 후 다시 시도해 주세요.</string>
     <string name="error_previous_stuck">이전 게임이 응답하지 않아 새 게임을 시작할 수 없어요. 앱을 종료한 뒤 다시 열어 주세요.</string>
     <string name="action_close">닫기</string>

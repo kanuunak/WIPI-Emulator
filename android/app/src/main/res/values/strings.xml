@@ -54,6 +54,7 @@
     <string name="license_role_rustysynth">Software MIDI synthesizer</string>
     <string name="license_role_font">In-game text font</string>
     <string name="license_role_soundfont">MIDI soundfont</string>
+    <string name="license_role_generated">Full list of other open-source libraries (generated)</string>
     <string name="error_previous_stopping">The previous game is still closing. Try again in a moment.</string>
     <string name="error_previous_stuck">The previous game isn\'t responding, so a new game can\'t start. Close the app and open it again.</string>
     <string name="action_close">Close</string>

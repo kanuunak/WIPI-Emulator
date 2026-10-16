@@ -3,7 +3,7 @@
 목표: Galaxy Z Fold5 커버 화면에서 위 게임 + 아래 터치 키패드로 WIPI/SKVM/J2ME 게임을 편하게 플레이한다.
 - 명세: `docs/fold-retro/Fold_Retro_Phone_MVP_v0.3.md` — 작업 전에 해당 절을 반드시 읽는다.
 - 실행 가이드(Phase 프롬프트·CI·클라우드 환경): `docs/fold-retro/Implementation_Guide_v0.3.md`
-- **최신 인계: `docs/fold-retro/HANDOFF_Phase3.5.md`** — 현재 상태, 확립된 절차(코어 포크 수정 등), 다음 Phase 프롬프트(3.6 스킨, 개정 Phase 4). 명세·가이드보다 우선.
+- **최신 인계: `docs/fold-retro/HANDOFF_Phase3.6.md`** — 현재 상태, 스킨·게임별 설정 결정, 다음 Phase 프롬프트(Phase 4). 명세·가이드보다 우선. 코어 포크 절차·DRM 원칙 등 확립된 결정의 근거는 `HANDOFF_Phase3.5.md`.
 - 원작자 개발 메모 `CLAUDE.md`는 참고용이다. 그중 빌드 경로(macOS), wie rev(b75a03c1), "path 의존성" 서술은 낡았다. 실제 기준은 `rust/Cargo.toml`(`kanuunak/wie` @ d45b8a7c = ParkJeongseop/wie 38f7e04f + 우리 수정 2건)과 명세 §6.3.
 
 ## 절대 규칙
@@ -33,7 +33,7 @@
 | `rust/wipi_core/src/session.rs` | 전역 단일 세션, 키 중복 무시 + 100ms 반복, 일시정지 |
 | `rust/wipi_android/src/bin/headless.rs` | UI 없는 실행 하니스(호스트에서 실행 가능) |
 | `demo/` | `demo.jar`(J2ME), `demo_wipi.zip`(KTF WIPI-C), `keytest/`(키 검증 MIDlet), `skins/`(코드로 그린 기본 스킨 — `make_skins.py`가 앱 `assets/skins/*.zip`도 만든다, `skin_compose.py` = 사진 스킨 "플레이용 재조립" 도구) |
-| `scripts/` | Rust → .so 빌드 스크립트 |
+| `scripts/` | Rust → .so 빌드 스크립트, `gen-licenses.py`(오픈소스 고지 자동 생성 → `assets/licenses/third_party.txt`. Cargo.lock·Gradle 의존성이 바뀌면 다시 실행 — 단위 테스트가 wie 버전 불일치를 잡는다) |
 
 ## 빌드
 

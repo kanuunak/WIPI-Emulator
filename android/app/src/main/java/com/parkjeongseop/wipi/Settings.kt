@@ -17,6 +17,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -27,6 +28,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -822,7 +824,8 @@ DISCLAIMER
 THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER DEALINGS IN THE FONT SOFTWARE.
 """.trimIndent()
 
-data class License(val name: String, val roleRes: Int, val text: String)
+/** [asset]이 있으면 본문을 앱 assets 파일에서 읽는다(자동 생성 목록 — scripts/gen-licenses.py) */
+data class License(val name: String, val roleRes: Int, val text: String, val asset: String? = null)
 
 private val licenses = listOf(
     License("wie", R.string.license_role_wie, mit("Copyright 2020 Inseok Lee")),
@@ -841,6 +844,7 @@ private val licenses = listOf(
             "Licensed under the GeneralUser GS License v2.0: free to use, modify and distribute, " +
             "including in commercial software, with attribution appreciated. No warranty is provided."
     ),
+    License("Rust / Android", R.string.license_role_generated, "", asset = "licenses/third_party.txt"),
 )
 
 @Composable
@@ -878,12 +882,19 @@ private fun LicensesPage(onSelect: (License) -> Unit, onBack: () -> Unit) {
 
 @Composable
 private fun LicenseDetailPage(license: License, onBack: () -> Unit) {
+    val context = LocalContext.current
+    // 자동 생성 목록은 수백 KB라 문단 단위 LazyColumn으로 그린다
+    val paragraphs = remember(license) {
+        val text = license.asset?.let { path ->
+            runCatching { context.assets.open(path).bufferedReader().use { it.readText() } }.getOrDefault("")
+        } ?: license.text
+        text.split("\n\n")
+    }
     SettingsScaffold(title = license.name, onBack = onBack) { modifier ->
-        Text(
-            license.text,
-            fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace,
-            modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        )
+        LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+            items(paragraphs) { p ->
+                Text(p, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(bottom = 8.dp))
+            }
+        }
     }
 }
