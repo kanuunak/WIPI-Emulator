@@ -120,6 +120,9 @@ class MainActivity : ComponentActivity() {
     /** 게임 화면 필터(설정에서 바꾸면 바로 반영) */
     private var screenFilter by mutableStateOf(ScreenFilter.SHARP)
 
+    /** 키패드 테마(설정에서 바꾸면 바로 반영) */
+    private var keypadTheme by mutableStateOf(KeypadTheme.DEFAULT)
+
     /** 배치 편집으로 저장·삭제할 때마다 증가 → 저장한 배치를 다시 읽는다 */
     private var customLayoutVersion by mutableIntStateOf(0)
 
@@ -135,6 +138,7 @@ class MainActivity : ComponentActivity() {
         haptics = Haptics(this)
         layoutMode = settings.layoutMode
         screenFilter = settings.screenFilter
+        keypadTheme = settings.keypadTheme
 
         setContent {
             WipiTheme {
@@ -215,6 +219,7 @@ class MainActivity : ComponentActivity() {
                     onVolumeChanged = { EmulatorSession.applyVolume() }, // 일시정지 중이면 0 유지
                     onLayoutModeChanged = { layoutMode = it },
                     onScreenFilterChanged = { screenFilter = it },
+                    onKeypadThemeChanged = { keypadTheme = it },
                     onDiagnostics = { showDiagnostics = true },
                     onClose = { showSettings = false },
                 )
@@ -525,6 +530,7 @@ class MainActivity : ComponentActivity() {
                         availHdp = maxHeight.value,
                         frame = frameImage,
                         hasFrame = hasFrame,
+                        keypadTheme = keypadTheme,
                         onSave = {
                             settings.setCustomLayout(layoutKey, it.serialize())
                             customLayoutVersion++
@@ -559,6 +565,7 @@ class MainActivity : ComponentActivity() {
                         // 설정은 누를 때마다 읽는다(설정 오버레이에서 바꾸면 바로 반영)
                         onFeedback = { if (settings.keypadHaptics) haptics.keyTap() },
                         rows = pad.rows,
+                        theme = keypadTheme,
                         onTrace = InputTrace::add,
                         modifier = Modifier
                             .offset(pad.rect.left.dp, pad.rect.top.dp)

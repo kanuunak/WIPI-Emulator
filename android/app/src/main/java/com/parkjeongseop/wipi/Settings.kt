@@ -7,20 +7,27 @@ package com.parkjeongseop.wipi
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewQuilt
@@ -47,11 +54,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
+import kotlin.math.roundToInt
 
 class Settings(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -90,6 +100,11 @@ class Settings(context: Context) {
         get() = runCatching { ScreenFilter.valueOf(prefs.getString("screenFilter", null) ?: "SHARP") }.getOrDefault(ScreenFilter.SHARP)
         set(value) = prefs.edit { putString("screenFilter", value.name) }
 
+    /** 키패드 테마(프리셋 + 모양·투명도·라벨 크기, [KeypadTheme.serialize]) */
+    var keypadTheme: KeypadTheme
+        get() = KeypadTheme.parse(prefs.getString("keypadTheme", null)) ?: KeypadTheme.DEFAULT
+        set(value) = prefs.edit { putString("keypadTheme", value.serialize()) }
+
     /** 배치 편집으로 저장한 배치(화면 크기 키별, [CustomLayout.serialize]). 없으면 null */
     fun customLayout(key: String): String? = prefs.getString("customLayout.$key", null)
 
@@ -113,6 +128,7 @@ fun SettingsFlow(
     onVolumeChanged: () -> Unit,
     onLayoutModeChanged: (LayoutMode) -> Unit,
     onScreenFilterChanged: (ScreenFilter) -> Unit,
+    onKeypadThemeChanged: (KeypadTheme) -> Unit,
     onDiagnostics: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -138,6 +154,7 @@ fun SettingsFlow(
             onVolumeChanged = onVolumeChanged,
             onLayoutModeChanged = onLayoutModeChanged,
             onScreenFilterChanged = onScreenFilterChanged,
+            onKeypadThemeChanged = onKeypadThemeChanged,
             onDiagnostics = onDiagnostics,
             onShowLicenses = { page = SettingsPage.Licenses },
             onBack = onClose,
@@ -180,6 +197,7 @@ private fun SettingsPage(
     onVolumeChanged: () -> Unit,
     onLayoutModeChanged: (LayoutMode) -> Unit,
     onScreenFilterChanged: (ScreenFilter) -> Unit,
+    onKeypadThemeChanged: (KeypadTheme) -> Unit,
     onDiagnostics: () -> Unit,
     onShowLicenses: () -> Unit,
     onBack: () -> Unit,
@@ -192,6 +210,7 @@ private fun SettingsPage(
     var keypadHaptics by remember { mutableStateOf(settings.keypadHaptics) }
     var layoutMode by remember { mutableStateOf(settings.layoutMode) }
     var screenFilter by remember { mutableStateOf(settings.screenFilter) }
+    var keypadTheme by remember { mutableStateOf(settings.keypadTheme) }
 
     SettingsScaffold(title = stringResource(R.string.settings_title), onBack = onBack) { modifier ->
         Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -340,6 +359,11 @@ private fun SettingsPage(
                 },
                 leadingContent = { Icon(Icons.Filled.Tune, null) },
             )
+            KeypadThemeItem(keypadTheme) {
+                keypadTheme = it
+                settings.keypadTheme = it
+                onKeypadThemeChanged(it)
+            }
 
             CategoryHeader(stringResource(R.string.settings_info_header))
             ListItem(
@@ -357,6 +381,120 @@ private fun SettingsPage(
                 headlineContent = { Text(stringResource(R.string.settings_version)) },
                 supportingContent = { Text(BuildConfig.VERSION_NAME) },
             )
+        }
+    }
+}
+
+// ── 키패드 테마: 프리셋(미리보기 + 라디오) → 모양·라벨 크기·투명도 (프리셋을 고르면 셋 다 프리셋 기본값으로) ──
+
+private val presetLabels = listOf(
+    KeypadPreset.GRAY to R.string.settings_keypad_theme_gray,
+    KeypadPreset.FOLDER_BLACK to R.string.settings_keypad_theme_folder_black,
+    KeypadPreset.SLIDE_WHITE to R.string.settings_keypad_theme_slide_white,
+    KeypadPreset.TRANSLUCENT to R.string.settings_keypad_theme_translucent,
+)
+
+/** 미리보기 행: 방향키 둘레 3행(소프트키·방향키·OK). ▲를 눌린 모습으로 그려 눌림 표시도 보여 준다 */
+private val previewRows = KeypadModel.UPPER_ROWS
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun KeypadThemeItem(theme: KeypadTheme, onChange: (KeypadTheme) -> Unit) {
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.settings_keypad_theme)) },
+        supportingContent = {
+            Column {
+                Text(stringResource(R.string.settings_keypad_theme_desc))
+                // 미리보기: 반투명 테마가 어떻게 보이는지 알 수 있게 게임 화면 같은 무늬 위에 그린다
+                Box(
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .background(EMULATOR_BG, RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    PreviewBackdrop(Modifier.fillMaxSize())
+                    KeypadPreview(
+                        rows = previewRows,
+                        theme = theme,
+                        down = setOf("UP"),
+                        modifier = Modifier.width(240.dp).height((previewRows.size * 40f + (previewRows.size - 1) * KEYPAD_SPACING_DP + 2 * KEYPAD_MARGIN_DP).dp),
+                    )
+                }
+                presetLabels.forEach { (preset, label) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { onChange(preset.defaults()) },
+                    ) {
+                        RadioButton(selected = theme.preset == preset, onClick = null)
+                        Text(stringResource(label), modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+
+                Text(stringResource(R.string.settings_keypad_shape), modifier = Modifier.padding(top = 8.dp))
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    val shapes = listOf(
+                        KeyShape.ROUNDED to R.string.settings_keypad_shape_rounded,
+                        KeyShape.SQUARE to R.string.settings_keypad_shape_square,
+                        KeyShape.PILL to R.string.settings_keypad_shape_pill,
+                    )
+                    shapes.forEachIndexed { i, (shape, label) ->
+                        SegmentedButton(
+                            selected = theme.shape == shape,
+                            onClick = { onChange(theme.copy(shape = shape)) },
+                            shape = SegmentedButtonDefaults.itemShape(i, shapes.size),
+                        ) { Text(stringResource(label)) }
+                    }
+                }
+
+                Text(stringResource(R.string.settings_keypad_label_size), modifier = Modifier.padding(top = 8.dp))
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    val sizes = listOf(
+                        LabelSize.SMALL to R.string.settings_keypad_label_small,
+                        LabelSize.MEDIUM to R.string.settings_keypad_label_medium,
+                        LabelSize.LARGE to R.string.settings_keypad_label_large,
+                    )
+                    sizes.forEachIndexed { i, (size, label) ->
+                        SegmentedButton(
+                            selected = theme.labelSize == size,
+                            onClick = { onChange(theme.copy(labelSize = size)) },
+                            shape = SegmentedButtonDefaults.itemShape(i, sizes.size),
+                        ) { Text(stringResource(label)) }
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+                    Text(stringResource(R.string.settings_keypad_opacity), modifier = Modifier.weight(1f))
+                    Text("${(theme.opacity * 100).roundToInt()}%")
+                }
+                Slider(
+                    value = theme.opacity,
+                    valueRange = KeypadTheme.MIN_OPACITY..1f,
+                    onValueChange = { onChange(theme.copy(opacity = it)) },
+                )
+            }
+        },
+        leadingContent = { Icon(Icons.Filled.Dialpad, null) },
+    )
+}
+
+/** 테마 미리보기 뒤 무늬(게임 화면 대신): 굵은 대각선 줄무늬 */
+@Composable
+private fun PreviewBackdrop(modifier: Modifier) {
+    Canvas(modifier = modifier) {
+        val step = 24.dp.toPx()
+        var x = -size.height
+        var i = 0
+        while (x < size.width) {
+            drawLine(
+                color = if (i % 2 == 0) Color(0xFF3A6EA5) else Color(0xFFE0A030),
+                start = Offset(x, size.height),
+                end = Offset(x + size.height, 0f),
+                strokeWidth = step / 2f,
+            )
+            x += step
+            i++
         }
     }
 }

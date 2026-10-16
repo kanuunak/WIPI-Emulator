@@ -67,6 +67,7 @@ fun LayoutEditor(
     availHdp: Float,
     frame: ImageBitmap,
     hasFrame: Boolean,
+    keypadTheme: KeypadTheme,
     onSave: (CustomLayout) -> Unit,
     onCancel: () -> Unit,
     onReset: () -> Unit,
@@ -105,7 +106,7 @@ fun LayoutEditor(
                 onMove = { dx, dy -> draft = draft.updatePad(i) { LayoutEdit.move(it.rect, dx, dy, w, h) } },
                 onResize = { dx, dy -> draft = draft.updatePad(i) { LayoutEdit.resizePad(it.rect, it.rows.rows.size, dx, dy, w, h) } },
             ) {
-                KeypadPreview(rows = pad.rows.rows, modifier = Modifier.fillMaxSize().alpha(0.9f))
+                KeypadPreview(rows = pad.rows.rows, theme = keypadTheme, modifier = Modifier.fillMaxSize().alpha(0.9f))
             }
         }
 

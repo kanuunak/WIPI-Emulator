@@ -85,4 +85,19 @@
     <string name="settings_filter_scanlines">스캔라인 (옛 브라운관)</string>
     <string name="settings_filter_lcd">LCD 격자 (옛 휴대폰 화면)</string>
     <string name="settings_filter_upscale">업스케일 (대각선을 매끈하게, Android 13 이상)</string>
+    <string name="settings_keypad_theme">키패드 테마</string>
+    <string name="settings_keypad_theme_desc">키 색·모양·투명도·글자 크기</string>
+    <string name="settings_keypad_theme_gray">기본 회색</string>
+    <string name="settings_keypad_theme_folder_black">검정 폴더폰</string>
+    <string name="settings_keypad_theme_slide_white">흰색 슬라이드폰</string>
+    <string name="settings_keypad_theme_translucent">반투명</string>
+    <string name="settings_keypad_shape">키 모양</string>
+    <string name="settings_keypad_shape_rounded">둥근</string>
+    <string name="settings_keypad_shape_square">네모</string>
+    <string name="settings_keypad_shape_pill">알약</string>
+    <string name="settings_keypad_label_size">글자 크기</string>
+    <string name="settings_keypad_label_small">작게</string>
+    <string name="settings_keypad_label_medium">보통</string>
+    <string name="settings_keypad_label_large">크게</string>
+    <string name="settings_keypad_opacity">키 불투명도</string>
 </resources>

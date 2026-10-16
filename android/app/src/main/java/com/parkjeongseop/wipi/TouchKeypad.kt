@@ -28,7 +28,9 @@ import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -37,9 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
-private val KEY_COLOR = Color(0xFF404040)
-private const val KEY_PRESSED_ALPHA = 0.6f
-private const val KEY_CORNER_DP = 8f
+/** 몸체(판) 모서리 상한 */
+private const val BODY_CORNER_MAX_DP = 20f
 
 /**
  * 7행×3열 터치 키패드. 크기(바깥 여백 포함)는 호출자가 정한다 — 에뮬 화면은 [StackLayout.keypad]
@@ -51,6 +52,7 @@ private const val KEY_CORNER_DP = 8f
  *
  * @param onFeedback 누름·슬라이드로 키가 바뀔 때 호출(햅틱). 설정 확인은 호출자 몫.
  * @param onTrace 진단 기록(키 누름·슬라이드·뗌과 이유, 좌표 dp). 레이아웃 HUD에 표시된다.
+ * @param theme 키 색·모양·투명도·라벨 크기(설정 > 화면 > 키패드 테마)
  */
 @Composable
 fun TouchKeypad(
@@ -58,12 +60,12 @@ fun TouchKeypad(
     onFeedback: () -> Unit,
     modifier: Modifier = Modifier,
     rows: List<List<KeyDef>> = KeypadModel.ROWS,
+    theme: KeypadTheme = KeypadTheme.DEFAULT,
     onTrace: (String) -> Unit = {},
 ) {
     val feedback by rememberUpdatedState(onFeedback)
     val trace by rememberUpdatedState(onTrace)
     val textMeasurer = rememberTextMeasurer()
-    val labelStyle = TextStyle(color = Color.White, fontSize = 16.sp)
 
     // 지금 이 키패드의 손가락이 누르고 있는 키 코드. Canvas draw 단계에서만 읽어 눌림 변화는 다시 그리기만 한다
     var pressed by remember { mutableStateOf(emptySet<String>()) }
@@ -77,9 +79,7 @@ fun TouchKeypad(
         }
         // 뒤로가기 제스처 제외: 방향키 블록. 숫자만 있는 키패드(좌우 분할의 오른쪽)는 화면 오른쪽 가장자리에 붙으므로 전체
         val exclusionBottom = if (layout.dpadBlockBottom > 0f) layout.dpadBlockBottom else heightPx
-        val labels = remember(layout, textMeasurer) {
-            layout.keys.map { textMeasurer.measure(it.key.label, labelStyle) }
-        }
+        val labels = remember(layout, textMeasurer, theme.labelSize, theme.palette.label) { measureLabels(textMeasurer, layout, theme) }
 
         Canvas(
             modifier = Modifier
@@ -150,42 +150,78 @@ fun TouchKeypad(
                     }
                 },
         ) {
-            drawKeys(layout, labels, pressed)
+            drawKeys(layout, labels, pressed, theme)
         }
     }
 }
 
-/** 키 그리기(터치 키패드와 배치 편집 미리보기가 같이 쓴다) */
-private fun DrawScope.drawKeys(layout: KeypadLayout, labels: List<TextLayoutResult>, down: Set<String>) {
-    val corner = CornerRadius(KEY_CORNER_DP.dp.toPx())
-    layout.keys.forEachIndexed { i, r ->
+private fun measureLabels(textMeasurer: TextMeasurer, layout: KeypadLayout, theme: KeypadTheme): List<TextLayoutResult> {
+    val style = TextStyle(color = Color(theme.palette.label), fontSize = theme.labelSize.sp.sp)
+    return layout.keys.map { textMeasurer.measure(it.key.label, style) }
+}
+
+/** 키 그리기(터치 키패드·배치 편집 미리보기·설정의 테마 미리보기가 같이 쓴다). 눌린 키는 [KeypadTheme.pressedColor]로 */
+private fun DrawScope.drawKeys(layout: KeypadLayout, labels: List<TextLayoutResult>, down: Set<String>, theme: KeypadTheme) {
+    val palette = theme.palette
+    val first = layout.keys.firstOrNull() ?: return
+    val keyCorner = theme.cornerRadiusPx(first.right - first.left, first.bottom - first.top, density)
+    palette.body?.let { body ->
+        val margin = KEYPAD_MARGIN_DP.dp.toPx()
         drawRoundRect(
-            color = KEY_COLOR,
-            topLeft = Offset(r.left, r.top),
-            size = Size(r.right - r.left, r.bottom - r.top),
-            cornerRadius = corner,
-            alpha = if (r.key.code in down) KEY_PRESSED_ALPHA else 1f,
+            color = Color(body),
+            cornerRadius = CornerRadius(minOf(keyCorner + margin, BODY_CORNER_MAX_DP.dp.toPx())),
+            alpha = theme.opacity,
         )
+    }
+    val strokePx = 1.dp.toPx()
+    layout.keys.forEachIndexed { i, r ->
+        val pressed = r.key.code in down
+        val corner = CornerRadius(theme.cornerRadiusPx(r.right - r.left, r.bottom - r.top, density))
+        val topLeft = Offset(r.left, r.top)
+        val size = Size(r.right - r.left, r.bottom - r.top)
+        drawRoundRect(
+            color = Color(if (pressed) theme.pressedColor(r.key.cluster) else theme.keyColor(r.key.cluster)),
+            topLeft = topLeft,
+            size = size,
+            cornerRadius = corner,
+            alpha = theme.fillAlpha(pressed),
+        )
+        palette.border?.let { border ->
+            val half = strokePx / 2f
+            drawRoundRect(
+                color = Color(border),
+                topLeft = Offset(r.left + half, r.top + half),
+                size = Size(size.width - strokePx, size.height - strokePx),
+                cornerRadius = CornerRadius((corner.x - half).coerceAtLeast(0f)),
+                style = Stroke(strokePx),
+                alpha = theme.borderAlpha,
+            )
+        }
         val label = labels[i]
         drawText(
             label,
             topLeft = Offset(r.centerX - label.size.width / 2f, r.centerY - label.size.height / 2f),
+            alpha = theme.labelAlpha,
         )
     }
 }
 
-/** 입력을 받지 않는 키패드 그림(배치 편집용). 크기는 호출자가 정한다. */
+/** 입력을 받지 않는 키패드 그림(배치 편집·테마 미리보기). 크기는 호출자가 정한다. [down]은 눌린 모습으로 그릴 키 */
 @Composable
-fun KeypadPreview(rows: List<List<KeyDef>>, modifier: Modifier = Modifier) {
+fun KeypadPreview(
+    rows: List<List<KeyDef>>,
+    modifier: Modifier = Modifier,
+    theme: KeypadTheme = KeypadTheme.DEFAULT,
+    down: Set<String> = emptySet(),
+) {
     val textMeasurer = rememberTextMeasurer()
-    val labelStyle = TextStyle(color = Color.White, fontSize = 16.sp)
     BoxWithConstraints(modifier = modifier) {
         val density = LocalDensity.current.density
         val widthPx = constraints.maxWidth.toFloat()
         val heightPx = constraints.maxHeight.toFloat()
         val layout = remember(widthPx, heightPx, density, rows) { KeypadModel.layout(widthPx, heightPx, KeypadMetrics(density), rows) }
-        val labels = remember(layout, textMeasurer) { layout.keys.map { textMeasurer.measure(it.key.label, labelStyle) } }
-        Canvas(modifier = Modifier.fillMaxSize()) { drawKeys(layout, labels, emptySet()) }
+        val labels = remember(layout, textMeasurer, theme.labelSize, theme.palette.label) { measureLabels(textMeasurer, layout, theme) }
+        Canvas(modifier = Modifier.fillMaxSize()) { drawKeys(layout, labels, down, theme) }
     }
 }
 
@@ -211,4 +247,19 @@ private fun TouchKeypadPreview() {
             .width(344.dp)
             .height(keypadHeight(48f).dp),
     )
+}
+
+@Preview(name = "키패드 테마 프리셋 (▲ 눌림)", widthDp = 344, heightDp = 640)
+@Composable
+private fun KeypadThemePresetsPreview() {
+    androidx.compose.foundation.layout.Column(modifier = Modifier.background(EMULATOR_BG)) {
+        KeypadPreset.entries.forEach { preset ->
+            KeypadPreview(
+                rows = KeypadModel.UPPER_ROWS,
+                theme = preset.defaults(),
+                down = setOf("UP"),
+                modifier = Modifier.width(344.dp).height(160.dp),
+            )
+        }
+    }
 }

@@ -85,4 +85,19 @@
     <string name="settings_filter_scanlines">Scanlines (old CRT)</string>
     <string name="settings_filter_lcd">LCD grid (old phone screen)</string>
     <string name="settings_filter_upscale">Upscale (smooth diagonals, Android 13+)</string>
+    <string name="settings_keypad_theme">Keypad theme</string>
+    <string name="settings_keypad_theme_desc">Key colors, shape, transparency and label size</string>
+    <string name="settings_keypad_theme_gray">Basic gray</string>
+    <string name="settings_keypad_theme_folder_black">Black flip phone</string>
+    <string name="settings_keypad_theme_slide_white">White slider phone</string>
+    <string name="settings_keypad_theme_translucent">Translucent</string>
+    <string name="settings_keypad_shape">Key shape</string>
+    <string name="settings_keypad_shape_rounded">Rounded</string>
+    <string name="settings_keypad_shape_square">Square</string>
+    <string name="settings_keypad_shape_pill">Pill</string>
+    <string name="settings_keypad_label_size">Label size</string>
+    <string name="settings_keypad_label_small">Small</string>
+    <string name="settings_keypad_label_medium">Medium</string>
+    <string name="settings_keypad_label_large">Large</string>
+    <string name="settings_keypad_opacity">Key opacity</string>
 </resources>
