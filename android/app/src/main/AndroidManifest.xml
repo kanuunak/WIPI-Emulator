@@ -20,6 +20,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 진단 로그 공유(Diagnostics.kt): cacheDir/diagnostics/의 텍스트 파일 하나를 공유 시트로 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.diagnostics"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/diagnostic_paths" />
+        </provider>
     </application>
 
 </manifest>

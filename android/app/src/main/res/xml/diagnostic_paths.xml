@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 공유 범위: 진단 로그 폴더만 (Diagnostics.kt의 DIR과 같아야 한다) -->
+<paths>
+    <cache-path name="diagnostics" path="diagnostics/" />
+</paths>

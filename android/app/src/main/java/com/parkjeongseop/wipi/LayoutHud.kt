@@ -37,7 +37,7 @@ data class LayoutMetrics(val lines: List<String>, val logLine: String)
 
 /** 인셋(dp, L,T,R,B)을 읽어 레이아웃 계산 결과와 합친다. 인셋 변화도 구독한다. */
 @Composable
-fun layoutMetrics(windowWdp: Float, windowHdp: Float, layout: StackLayout): LayoutMetrics {
+fun layoutMetrics(windowWdp: Float, windowHdp: Float, layout: ScreenLayout): LayoutMetrics {
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val config = LocalConfiguration.current
@@ -66,13 +66,11 @@ fun layoutMetrics(windowWdp: Float, windowHdp: Float, layout: StackLayout): Layo
         add("insets dp L,T,R,B")
         named.forEach { (name, value) -> add("${name.padEnd(6)} $value") }
         add("avail ${layout.availWdp.roundToInt()}x${layout.availHdp.roundToInt()}dp")
-        add("keyH ${layout.keyH.roundToInt()}dp gap ${layout.gap.roundToInt()}dp")
         add("game ${g.width.roundToInt()}x${g.height.roundToInt()}dp")
         add("     ${px.width}x${px.height}px x${"%.2f".format(java.util.Locale.ROOT, layout.gameScale)}")
-        add("keypad ${layout.keypad.width.roundToInt()}x${layout.keypad.height.roundToInt()}dp")
-        if (!layout.fits) add("OVERFLOW: keypad > avail")
+        addAll(layout.details)
     }
-    val logLine = "layout $window $scale " + named.joinToString(" ") { (n, v) -> "$n=$v" } + " " + layout.summary()
+    val logLine = "layout $window $scale " + named.joinToString(" ") { (n, v) -> "$n=$v" } + " " + layout.summary
     return LayoutMetrics(lines, logLine)
 }
 
@@ -93,10 +91,14 @@ object InputTrace {
     }
 }
 
-/** 화면 왼쪽 위(안전 영역 안)에 크게 표시. 입력을 받지 않아 아래 키·게임 터치를 막지 않는다. */
+/**
+ * 화면 왼쪽 위(안전 영역 안)에 크게 표시. 입력을 받지 않아 아래 키·게임 터치를 막지 않는다.
+ * [cpu]: 앱 CPU 사용률 줄(1초마다 갱신, 코어 하나 = 100%, 둘째 줄 = 상위 스레드) — 맨 위에 하늘색으로.
+ */
 @Composable
-fun LayoutHud(metrics: LayoutMetrics, trace: List<String> = emptyList(), modifier: Modifier = Modifier) {
+fun LayoutHud(metrics: LayoutMetrics, trace: List<String> = emptyList(), cpu: List<String> = emptyList(), modifier: Modifier = Modifier) {
     Column(modifier = modifier.background(Color.Black.copy(alpha = 0.75f)).padding(6.dp)) {
+        cpu.forEach { Text(it, color = Color(0xFF87CEFA), fontSize = 14.sp, lineHeight = 16.sp, fontFamily = FontFamily.Monospace) }
         metrics.lines.forEach {
             Text(it, color = Color(0xFF7CFC00), fontSize = 14.sp, lineHeight = 16.sp, fontFamily = FontFamily.Monospace)
         }

@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Fold Retro</string>
     <string name="library_empty_title">No games yet</string>
-    <string name="library_empty_hint">Tap + at the top right to add a .zip / .jar game</string>
+    <string name="library_empty_hint">Tap + at the top right to add a game file (.zip / .jar) or a game folder</string>
     <string name="action_add_game">Add game</string>
     <string name="action_settings">Settings</string>
     <string name="action_ok">OK</string>
@@ -17,13 +17,13 @@
     <string name="emulator_layout_hud_toggle">Show or hide layout info</string>
     <string name="import_failed_title">Import failed</string>
     <string name="import_read_error">Couldn\'t read the file</string>
+    <string name="action_import_file">Game file (.zip / .jar)</string>
+    <string name="action_import_folder">Game folder</string>
     <string name="delete_game_title">Delete game</string>
     <string name="delete_game_message">Delete \"%1$s\"? Its save data will also be deleted.</string>
     <string name="error_start_failed">Couldn\'t start the game. Please try again.</string>
-    <string name="error_load_failed">Couldn\'t load the game — it may be unsupported or the file may be corrupted.
-(%1$s)</string>
-    <string name="error_runtime">An error occurred while running — this game may not be fully supported yet.
-(%1$s)</string>
+    <string name="error_load_failed">Couldn\'t load the game — it may be unsupported or the file may be corrupted.</string>
+    <string name="error_runtime">An error occurred while running — this game may not be fully supported yet.</string>
     <string name="settings_title">Settings</string>
     <string name="settings_sound_header">Sound</string>
     <string name="settings_sound">Sound</string>
@@ -53,4 +53,36 @@
     <string name="license_role_rustysynth">Software MIDI synthesizer</string>
     <string name="license_role_font">In-game text font</string>
     <string name="license_role_soundfont">MIDI soundfont</string>
+    <string name="error_previous_stopping">The previous game is still closing. Try again in a moment.</string>
+    <string name="error_previous_stuck">The previous game isn\'t responding, so a new game can\'t start. Close the app and open it again.</string>
+    <string name="action_close">Close</string>
+    <string name="action_close_app">Close app</string>
+    <string name="action_diag_log">Diagnostic log</string>
+    <string name="action_save_file">Save to file</string>
+    <string name="action_share">Share</string>
+    <string name="settings_diag_log">Save or share diagnostic log</string>
+    <string name="settings_diag_log_desc">App and device info, the last error and this app\'s log, for bug reports</string>
+    <string name="diag_dialog_title">Diagnostic log</string>
+    <string name="diag_dialog_message">Save to file: kept in a folder you choose, such as Download.\nShare: sent straight to another app. A summary goes in the message and the full log is attached (only in apps that accept attachments).</string>
+    <string name="diag_saved">Diagnostic log saved</string>
+    <string name="diag_failed">Couldn\'t create the diagnostic log</string>
+    <string name="settings_screen_header">Screen</string>
+    <string name="settings_layout">Game layout</string>
+    <string name="settings_layout_desc">Auto: game above the keypad on narrow screens (cover), keypad split to both sides on wide screens (unfolded, landscape). To place things yourself: pause the game → Edit layout (a saved layout takes priority on that screen).</string>
+    <string name="settings_layout_auto">Auto</string>
+    <string name="settings_layout_stack">Stacked</string>
+    <string name="settings_layout_split">Split</string>
+    <string name="emulator_edit_layout">Edit layout</string>
+    <string name="editor_split">Split keypad</string>
+    <string name="editor_merge">Merge keypad</string>
+    <string name="editor_reset">Default</string>
+    <string name="editor_save">Save</string>
+    <string name="editor_hint">Drag to move · drag the ● corner to resize · saved for this screen shape</string>
+    <string name="settings_filter">Screen filter</string>
+    <string name="settings_filter_desc">How the enlarged game picture is drawn</string>
+    <string name="settings_filter_sharp">Sharp (original pixels)</string>
+    <string name="settings_filter_smooth">Smooth</string>
+    <string name="settings_filter_scanlines">Scanlines (old CRT)</string>
+    <string name="settings_filter_lcd">LCD grid (old phone screen)</string>
+    <string name="settings_filter_upscale">Upscale (smooth diagonals, Android 13+)</string>
 </resources>

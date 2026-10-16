@@ -2,11 +2,13 @@ package com.parkjeongseop.wipi
 
 import android.net.Uri
 import android.os.Bundle
+import android.os.Process
 import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -38,17 +40,22 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,6 +65,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -74,17 +82,24 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.lifecycleScope
 import java.io.File
+import java.util.Locale
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 const val SCREEN_WIDTH = 240
@@ -99,6 +114,15 @@ class MainActivity : ComponentActivity() {
     private lateinit var settings: Settings
     private lateinit var haptics: Haptics
 
+    /** 게임 화면 배치 설정(설정 오버레이에서 바꾸면 바로 다시 배치) */
+    private var layoutMode by mutableStateOf(LayoutMode.AUTO)
+
+    /** 게임 화면 필터(설정에서 바꾸면 바로 반영) */
+    private var screenFilter by mutableStateOf(ScreenFilter.SHARP)
+
+    /** 배치 편집으로 저장·삭제할 때마다 증가 → 저장한 배치를 다시 읽는다 */
+    private var customLayoutVersion by mutableIntStateOf(0)
+
     /** 에뮬 화면에서만 하드웨어 키를 게임으로 전달 (화면 = 세션 유무에서 파생) */
     private val emulatorActive: Boolean get() = EmulatorSession.activeGame != null
 
@@ -109,6 +133,8 @@ class MainActivity : ComponentActivity() {
         library = GameLibrary(this)
         settings = Settings(this)
         haptics = Haptics(this)
+        layoutMode = settings.layoutMode
+        screenFilter = settings.screenFilter
 
         setContent {
             WipiTheme {
@@ -126,8 +152,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun WipiApp() {
         var games by remember { mutableStateOf(library.list()) }
-        var errorMessage by remember { mutableStateOf<String?>(null) }
+        var errorMessage by remember { mutableStateOf<UiError?>(null) }
         var showSettings by remember { mutableStateOf(false) } // iOS sheet 대응 오버레이
+        var showDiagnostics by remember { mutableStateOf(false) } // 진단 로그: 파일로 저장 / 공유 선택
 
         Box(modifier = Modifier.fillMaxSize()) {
             if (EmulatorSession.activeGame == null) {
@@ -136,15 +163,29 @@ class MainActivity : ComponentActivity() {
                     error = errorMessage,
                     onDismissError = { errorMessage = null },
                     onPlay = { entry ->
-                        if (EmulatorSession.start(entry, soundfontPath())) {
-                            errorMessage = null
-                        } else {
+                        errorMessage = when (EmulatorSession.start(entry, soundfontPath())) {
+                            StartResult.STARTED -> null
+                            // 이전 게임 정지(백그라운드 join)가 안 끝남. 오래 걸리면 에뮬 스레드가 멈춘 것 → 앱 재시작 안내
+                            StartResult.BUSY -> if (EmulatorSession.stopStuck) {
+                                // 진단 로그의 마지막 오류(멈추기 전 오류)는 덮지 않는다 — 정지 상태는 Session 절과 logcat에 남는다
+                                UiError(getString(R.string.error_previous_stuck), offerCloseApp = true)
+                            } else {
+                                UiError(getString(R.string.error_previous_stopping))
+                            }
                             // 동기 실패는 형식 문제가 아니라 시작 자체 실패 (형식 오류는 로드 후 kind로 안내됨)
-                            errorMessage = pendingError() ?: getString(R.string.error_start_failed)
+                            StartResult.FAILED -> pendingError() ?: run {
+                                Diagnostics.recordError("start", "nativeStart returned false (${entry.filename})")
+                                UiError(getString(R.string.error_start_failed))
+                            }
                         }
                     },
                     onImport = { uri ->
                         val entry = library.importGame(uri)
+                        games = library.list()
+                        entry != null
+                    },
+                    onImportFolder = { uri ->
+                        val entry = library.importFolder(uri)
                         games = library.list()
                         entry != null
                     },
@@ -153,11 +194,13 @@ class MainActivity : ComponentActivity() {
                         games = library.list()
                     },
                     onSettings = { showSettings = true },
+                    onDiagnostics = { showDiagnostics = true },
+                    onCloseApp = ::closeApp,
                 )
             } else {
                 EmulatorScreen(
-                    onError = { message ->
-                        errorMessage = message
+                    onError = { error ->
+                        errorMessage = error
                         EmulatorSession.stop()
                     },
                     onExit = { EmulatorSession.stop() },
@@ -170,19 +213,80 @@ class MainActivity : ComponentActivity() {
                 SettingsFlow(
                     settings = settings,
                     onVolumeChanged = { EmulatorSession.applyVolume() }, // 일시정지 중이면 0 유지
+                    onLayoutModeChanged = { layoutMode = it },
+                    onScreenFilterChanged = { screenFilter = it },
+                    onDiagnostics = { showDiagnostics = true },
                     onClose = { showSettings = false },
                 )
             }
         }
+
+        if (showDiagnostics) {
+            DiagnosticsDialog(
+                onSave = {
+                    showDiagnostics = false
+                    saveDiagnostics.launch(Diagnostics.fileName())
+                },
+                onShare = {
+                    showDiagnostics = false
+                    shareDiagnostics()
+                },
+                onDismiss = { showDiagnostics = false },
+            )
+        }
     }
 
-    /** 보류 중 오류를 사용자 안내 문구 + 진단 원문으로 변환 (없으면 null). iOS WipiCore.describeError와 동일 카피. */
-    private fun pendingError(): String? {
+    /**
+     * 보류 중 오류를 사용자 안내 문구 + 진단 원문으로 변환 (없으면 null). 안내 문구는 iOS WipiCore.describeError와 동일 카피.
+     * 원문 전체(레지스터·스택 덤프 포함)는 진단 로그에 기록하고, 배너에는 앞 몇 줄만 보인다.
+     */
+    private fun pendingError(): UiError? {
         val (kind, detail) = EmulatorSession.takeError() ?: return null
-        return when (kind) {
-            0 -> getString(R.string.error_load_failed, detail)
-            else -> getString(R.string.error_runtime, detail)
+        Diagnostics.recordError(if (kind == 0) "load failed" else "runtime", detail)
+        val message = getString(if (kind == 0) R.string.error_load_failed else R.string.error_runtime)
+        return UiError(message, detail)
+    }
+
+    private var exportingDiagnostics = false
+
+    /** 파일로 저장: 사용자가 고른 위치(예: 다운로드)에 전체 보고서를 쓴다. 권한 필요 없음(SAF). */
+    private val saveDiagnostics = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri == null) return@registerForActivityResult
+        exportDiagnostics("save") {
+            withContext(Dispatchers.IO) {
+                contentResolver.openOutputStream(uri)?.use { Diagnostics.writeReport(this@MainActivity, it) }
+                    ?: error("openOutputStream returned null")
+            }
+            Toast.makeText(this@MainActivity, R.string.diag_saved, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /** 공유: 보고서 파일(logcat 읽기 — 백그라운드)을 첨부 + 요약을 본문으로 공유 시트에 넘긴다 */
+    private fun shareDiagnostics() = exportDiagnostics("share") {
+        val (file, summary) = withContext(Dispatchers.IO) { Diagnostics.writeShareFile(this@MainActivity) }
+        startActivity(Diagnostics.shareIntent(this@MainActivity, file, summary, getString(R.string.diag_dialog_title)))
+    }
+
+    private fun exportDiagnostics(what: String, block: suspend () -> Unit) {
+        if (exportingDiagnostics) return
+        exportingDiagnostics = true
+        lifecycleScope.launch {
+            try {
+                block()
+            } catch (e: Exception) {
+                Log.w(LOG_TAG, "diagnostics $what failed", e)
+                Toast.makeText(this@MainActivity, R.string.diag_failed, Toast.LENGTH_SHORT).show()
+            } finally {
+                exportingDiagnostics = false
+            }
+        }
+    }
+
+    /** 에뮬 스레드가 멈춰 정지가 끝나지 않을 때의 유일한 복구: 프로세스를 끝낸다(다음 실행은 라이브러리부터, 세이브는 게임이 저장한 시점까지) */
+    private fun closeApp() {
+        Log.w(LOG_TAG, "closing app: ${EmulatorSession.stopStatus()}")
+        finishAndRemoveTask()
+        Process.killProcess(Process.myPid())
     }
 
     /** assets의 사운드폰트를 filesDir로 복사하고 경로 반환 (실패 시 빈 문자열 → MIDI 무음) */
@@ -300,7 +404,7 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
-    private fun EmulatorScreen(onError: (String) -> Unit, onExit: () -> Unit, onSettings: () -> Unit) {
+    private fun EmulatorScreen(onError: (UiError) -> Unit, onExit: () -> Unit, onSettings: () -> Unit) {
         val vibrateOut = remember { LongArray(2) }
         val paused = EmulatorSession.paused
         // 프레임·일시정지 상태는 EmulatorSession(프로세스 수명)에 있어 Activity 재생성 뒤에도 마지막 프레임을 바로 그린다.
@@ -366,9 +470,35 @@ class MainActivity : ComponentActivity() {
         }
 
         val frameImage = remember { EmulatorSession.frameBitmap.asImageBitmap() }
+        val renderer = remember { GameRenderer(EmulatorSession.frameBitmap) }
         // 첫 프레임 도착 여부만 구독 (frameVersion 자체를 컴포지션에서 읽으면 매 프레임 재구성된다)
         val hasFrame by remember { derivedStateOf { EmulatorSession.frameVersion > 0 } }
         var showHud by rememberSaveable { mutableStateOf(false) } // 레이아웃 HUD, 기본 꺼짐
+        var editing by rememberSaveable { mutableStateOf(false) } // 배치 편집(일시정지 메뉴에서)
+
+        // 앱 CPU 사용률: HUD가 켜져 있을 때만 1초마다 /proc/self/stat·task/*/stat을 읽는다(발열 확인용, 코어 하나 = 100%).
+        // 둘째 줄 = 많이 쓰는 스레드(wie-emulator = 에뮬, RenderThread·main = 화면, 그 외 오디오 등)
+        var cpuLines by remember { mutableStateOf<List<String>>(emptyList()) }
+        if (showHud) {
+            LaunchedEffect(Unit) {
+                val sampler = CpuUsage.Sampler()
+                val cores = Runtime.getRuntime().availableProcessors()
+                cpuLines = listOf("cpu …")
+                while (isActive) {
+                    val sample = withContext(Dispatchers.IO) { sampler.sample() }
+                    if (sample != null) {
+                        val paused = EmulatorSession.paused
+                        val threads = sample.threads.joinToString(" ") { (name, p) -> "$name ${p.roundToInt()}" }
+                        cpuLines = listOf(
+                            "cpu ${"%.1f".format(Locale.ROOT, sample.total)}% (1 core=100%, ${cores}c)" + if (paused) " paused" else "",
+                            " $threads",
+                        )
+                        Diagnostics.recordCpu(sample.total, threads, paused)
+                    }
+                    delay(1000)
+                }
+            }
+        }
 
         // 바깥: 시스템 바 뒤까지 배경을 칠한다(edge-to-edge). 크기 = 창(콘텐츠) 크기
         BoxWithConstraints(modifier = Modifier.fillMaxSize().background(EMULATOR_BG)) {
@@ -378,20 +508,41 @@ class MainActivity : ComponentActivity() {
             // 안쪽: 안전 영역(safeDrawing 인셋 제외) 안에서 명세 §5.3 계산 결과대로 배치
             BoxWithConstraints(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 val density = LocalDensity.current.density
-                val layout = remember(maxWidth, maxHeight, density) {
-                    computeStackLayout(maxWidth.value, maxHeight.value, density)
+                // 이 화면 크기에 저장한 배치(배치 편집)가 있으면 그것, 없으면 설정(자동/위아래/좌우)대로 계산
+                val layoutKey = CustomLayout.key(maxWidth.value, maxHeight.value)
+                val custom = remember(layoutKey, customLayoutVersion) { settings.customLayout(layoutKey)?.let(CustomLayout::parse) }
+                val layout = remember(maxWidth, maxHeight, density, layoutMode, custom) {
+                    custom?.toScreenLayout(maxWidth.value, maxHeight.value, density)
+                        ?: computeScreenLayout(layoutMode, maxWidth.value, maxHeight.value, density)
                 }
                 val metrics = layoutMetrics(windowW, windowH, layout)
                 LaunchedEffect(metrics) { Log.i(LOG_TAG, metrics.logLine) }
 
+                if (editing) {
+                    LayoutEditor(
+                        initial = CustomLayout.from(layout),
+                        availWdp = maxWidth.value,
+                        availHdp = maxHeight.value,
+                        frame = frameImage,
+                        hasFrame = hasFrame,
+                        onSave = {
+                            settings.setCustomLayout(layoutKey, it.serialize())
+                            customLayoutVersion++
+                            editing = false
+                        },
+                        onCancel = { editing = false },
+                        onReset = {
+                            settings.setCustomLayout(layoutKey, null)
+                            customLayoutVersion++
+                            editing = false
+                        },
+                    )
+                } else {
                 // 게임: draw 단계에서만 frameVersion을 읽어 새 프레임마다 다시 그리기만 한다
+                // 필터(설정 > 화면 > 화면 필터)도 draw 단계에서 읽는다
                 Canvas(modifier = Modifier.offset(layout.game.left.dp, layout.game.top.dp).size(layout.game.width.dp, layout.game.height.dp)) {
                     if (EmulatorSession.frameVersion > 0) {
-                        drawImage(
-                            frameImage,
-                            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                            filterQuality = FilterQuality.None,
-                        )
+                        with(renderer) { draw(frameImage, screenFilter) }
                     }
                 }
                 if (!hasFrame) {
@@ -401,18 +552,21 @@ class MainActivity : ComponentActivity() {
                     ) { Text(stringResource(R.string.emulator_loading), color = Color.White) }
                 }
 
-                // 키패드 영역(바깥 여백 포함, 높이 = keypadHeight(keyH)) — 키 사각형은 KeypadModel이 이 크기에서 계산
-                TouchKeypad(
-                    hub = EmulatorSession.hub,
-                    // 설정은 누를 때마다 읽는다(설정 오버레이에서 바꾸면 바로 반영)
-                    onFeedback = { if (settings.keypadHaptics) haptics.keyTap() },
-                    onTrace = InputTrace::add,
-                    modifier = Modifier
-                        .offset(layout.keypad.left.dp, layout.keypad.top.dp)
-                        .size(layout.keypad.width.dp, layout.keypad.height.dp),
-                )
+                // 키패드(STACK = 7행 하나, SPLIT = 왼쪽 3행 + 오른쪽 4행) — 키 사각형은 KeypadModel이 각 크기에서 계산
+                layout.pads.forEach { pad ->
+                    TouchKeypad(
+                        hub = EmulatorSession.hub,
+                        // 설정은 누를 때마다 읽는다(설정 오버레이에서 바꾸면 바로 반영)
+                        onFeedback = { if (settings.keypadHaptics) haptics.keyTap() },
+                        rows = pad.rows,
+                        onTrace = InputTrace::add,
+                        modifier = Modifier
+                            .offset(pad.rect.left.dp, pad.rect.top.dp)
+                            .size(pad.rect.width.dp, pad.rect.height.dp),
+                    )
+                }
 
-                if (showHud) LayoutHud(metrics, InputTrace.lines)
+                if (showHud) LayoutHud(metrics, InputTrace.lines, cpuLines)
 
                 // 게임 우상단(안전 영역 안): 일시정지 + 설정. ⚙ 길게 누르기 = 레이아웃 HUD 켜기/끄기
                 Row(modifier = Modifier.offset(layout.icons.left.dp, layout.icons.top.dp)) {
@@ -433,9 +587,10 @@ class MainActivity : ComponentActivity() {
                         Icon(Icons.Filled.Settings, stringResource(R.string.action_settings), tint = Color.White.copy(alpha = 0.6f))
                     }
                 }
+                }
             }
 
-            if (paused) {
+            if (paused && !editing) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -452,7 +607,11 @@ class MainActivity : ComponentActivity() {
                         )
                         Text(stringResource(R.string.emulator_paused), color = Color.White, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp))
                         Text(stringResource(R.string.emulator_resume_hint), color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
-                        Button(onClick = onExit, modifier = Modifier.padding(top = 24.dp)) {
+                        // 배치 편집: 게임은 일시정지된 채로 편집 화면을 연다(닫으면 다시 이 메뉴)
+                        OutlinedButton(onClick = { editing = true }, modifier = Modifier.padding(top = 24.dp)) {
+                            Text(stringResource(R.string.emulator_edit_layout), color = Color.White)
+                        }
+                        Button(onClick = onExit, modifier = Modifier.padding(top = 12.dp)) {
                             Text(stringResource(R.string.emulator_exit))
                         }
                     }
@@ -467,13 +626,19 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun LibraryScreen(
         games: List<GameEntry>,
-        error: String?,
+        error: UiError?,
         onDismissError: () -> Unit,
         onPlay: (GameEntry) -> Unit,
         onImport: (Uri) -> Boolean,
+        onImportFolder: (Uri) -> Boolean,
         onDelete: (GameEntry) -> Unit,
         onSettings: () -> Unit,
+        onDiagnostics: () -> Unit,
+        onCloseApp: () -> Unit,
     ) {
+        // 오류 배너가 떠 있으면 뒤로가기는 배너부터 닫는다(앱이 백그라운드로 가면 다시 열어도 배너가 그대로 남아 있었다)
+        BackHandler(enabled = error != null) { onDismissError() }
+
         var importError by remember { mutableStateOf<String?>(null) }
         val readError = stringResource(R.string.import_read_error)
         var deleteTarget by remember { mutableStateOf<GameEntry?>(null) }
@@ -482,6 +647,11 @@ class MainActivity : ComponentActivity() {
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null && !onImport(uri)) importError = readError
         }
+        // 폴더(zip을 풀어 둔 것 등) — 앱이 게임 파일 하나로 묶어 저장한다
+        val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null && !onImportFolder(uri)) importError = readError
+        }
+        var addMenu by remember { mutableStateOf(false) }
 
         // Material 표준: TopAppBar(좌정렬 타이틀 + 우측 액션들)
         Scaffold(
@@ -489,9 +659,27 @@ class MainActivity : ComponentActivity() {
                 TopAppBar(
                     title = { Text(stringResource(R.string.app_name)) },
                     actions = {
-                        IconButton(onClick = {
-                            picker.launch(arrayOf("application/zip", "application/java-archive", "application/octet-stream"))
-                        }) { Icon(Icons.Filled.Add, stringResource(R.string.action_add_game)) }
+                        Box {
+                            IconButton(onClick = { addMenu = true }) { Icon(Icons.Filled.Add, stringResource(R.string.action_add_game)) }
+                            DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.action_import_file)) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, null) },
+                                    onClick = {
+                                        addMenu = false
+                                        picker.launch(arrayOf("application/zip", "application/java-archive", "application/octet-stream"))
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.action_import_folder)) },
+                                    leadingIcon = { Icon(Icons.Filled.Folder, null) },
+                                    onClick = {
+                                        addMenu = false
+                                        folderPicker.launch(null)
+                                    },
+                                )
+                            }
+                        }
                         IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, stringResource(R.string.action_settings)) }
                     },
                 )
@@ -563,21 +751,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-                // 실행 에러: 하단 배너, 탭하면 닫힘
-                error?.let {
-                    Text(
-                        it,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.errorContainer)
-                            .pointerInput(Unit) { detectTapGestures { onDismissError() } }
-                            .padding(12.dp),
-                    )
-                }
+                // 실행 에러: 하단 배너(탭·닫기·뒤로가기로 닫힘). 원문은 앞 몇 줄만 — 레지스터·스택 덤프까지 넣으면
+                // 배너가 화면 전체를 덮어 앱이 멈춘 것처럼 보였다. 전체 원문은 [로그 공유]의 진단 로그에 들어간다.
+                error?.let { ErrorBanner(it, onDismissError, onDiagnostics, onCloseApp, Modifier.align(Alignment.BottomCenter)) }
             }
         }
 
@@ -607,4 +783,60 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
+}
+
+/** 라이브러리 하단 오류 배너의 내용. [detail]은 영어 진단 원문(전체는 진단 로그로). */
+data class UiError(val message: String, val detail: String? = null, val offerCloseApp: Boolean = false)
+
+/** 배너에 보일 원문 줄 수. Fatal error 원문은 첫 줄에 원인이 있고 그 뒤는 레지스터·스택 덤프다. */
+private const val ERROR_DETAIL_LINES = 3
+
+@Composable
+private fun ErrorBanner(error: UiError, onDismiss: () -> Unit, onDiagnostics: () -> Unit, onCloseApp: () -> Unit, modifier: Modifier = Modifier) {
+    val color = MaterialTheme.colorScheme.onErrorContainer
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .pointerInput(Unit) { detectTapGestures { onDismiss() } }
+            .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
+    ) {
+        Text(error.message, color = color, fontSize = 14.sp, modifier = Modifier.fillMaxWidth())
+        error.detail?.let { detail ->
+            Text(
+                detail.lineSequence().filter { it.isNotBlank() }.take(ERROR_DETAIL_LINES).joinToString("\n"),
+                color = color.copy(alpha = 0.8f),
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                maxLines = ERROR_DETAIL_LINES,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            if (error.offerCloseApp) {
+                TextButton(onClick = onCloseApp) { Text(stringResource(R.string.action_close_app), color = color) }
+            }
+            TextButton(onClick = onDiagnostics) { Text(stringResource(R.string.action_diag_log), color = color) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close), color = color) }
+        }
+    }
+}
+
+/** 진단 로그 내보내기 방법 선택. 공유만으로는 기기에 남지 않는다(받는 앱이 첨부를 무시하면 본문 요약만 간다). */
+@Composable
+private fun DiagnosticsDialog(onSave: () -> Unit, onShare: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.diag_dialog_title)) },
+        text = { Text(stringResource(R.string.diag_dialog_message)) },
+        confirmButton = {
+            Row {
+                TextButton(onClick = onShare) { Text(stringResource(R.string.action_share)) }
+                TextButton(onClick = onSave) { Text(stringResource(R.string.action_save_file)) }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }

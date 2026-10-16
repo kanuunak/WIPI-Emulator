@@ -3,7 +3,7 @@
 - 작성일: 2026-10-13
 - 상태: Claude 교차 검토 반영 + 실행 경로 변경(클라우드 세션 크레딧 우선) / 구현 전
 - 기준 소스: `ParkJeongseop/WIPI-Emulator` @ `43a6098` (v0.3.1, 2026-10-09)
-- 기준 코어: `ParkJeongseop/wie` @ `38f7e04f` (`rust/Cargo.toml`에 git rev로 고정, `dlunch/wie`의 포크)
+- 기준 코어: `ParkJeongseop/wie` @ `38f7e04f` (`rust/Cargo.toml`에 git rev로 고정, `dlunch/wie`의 포크). 2026-10-15부터 `kanuunak/wie` @ `d45b8a7c`(38f7e04f + KTF 호환 수정 2건)
 - 기준 기기: Galaxy Z Fold5 (커버 6.2" 904×2316, 메인 7.6" 1812×2176)
 - 가칭: Fold Retro Phone (서비스·상표명 확정 아님)
 
@@ -108,7 +108,7 @@ demo/                                  자체 데모 demo.jar(J2ME), demo_wipi.z
 | `nativeSetPaused(Boolean)` | tick 정지(게임 세계 동결). 오디오 스레드는 멈추지 않음 |
 | `nativeSetVolume(pcm, midi)` | 0~1 |
 | `nativePollVibrate` / `nativePollExit` / `nativeGetError` | 폴링 |
-| `nativeStop()` | 에뮬 스레드 정지 후 join (**동기**, 현재 UI 스레드에서 호출) |
+| `nativeStop()` | 에뮬 스레드 정지 후 join (**동기**, SESSION 락을 쥔 채). Phase 3.5부터 `EmulatorSession`이 백그라운드 스레드에서 호출 |
 | `nativeGameIcon` / `nativeGameName` | 패키지 메타데이터 |
 
 - **세션 존재 여부를 묻는 API는 없다.** → Kotlin 쪽이 세션 상태를 직접 들고 있어야 한다(§5.1).
@@ -189,7 +189,7 @@ demo/                                  자체 데모 demo.jar(J2ME), demo_wipi.z
 
 - (Rust `wipi_core`) 일시정지 시간을 뺀 게임 시계 — 재개 시 시간 점프 해결. 현재 `now()`가 실제 시각(`SystemTime`)이라 재개하면 멈춰 있던 시간만큼 타이머가 한꺼번에 발화한다.
 - (Rust `wipi_core`) 일시정지 시 오디오 스트림 실제 정지, 오디오 포커스 처리.
-- `nativeStop()`을 UI 스레드 밖으로(긴 tick 중 종료 시 ANR 예방).
+- ~~`nativeStop()`을 UI 스레드 밖으로(긴 tick 중 종료 시 ANR 예방).~~ Phase 3.5에서 Kotlin으로 완료(`SessionStopper`). 락 밖 join·타임아웃(Rust)은 HANDOFF_Phase3 §5 변경안.
 - 게임별 키 배치 프리셋, 8방향 옵션, Flex 모드(반접힘), 기종별 정밀 튜닝.
 - 업스트림 PR(세션 종료·인셋·음소거 수정은 원본 앱 사용자 모두에게 유익).
 

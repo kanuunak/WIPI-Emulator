@@ -9,7 +9,9 @@ import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,6 +21,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.ViewQuilt
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -26,7 +31,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -36,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -70,6 +80,24 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("keypadHaptics", true)
         set(value) = prefs.edit { putBoolean("keypadHaptics", value) }
 
+    /** 게임 화면 배치: 자동(화면 모양으로) / 위아래(STACK) / 좌우(SPLIT) */
+    var layoutMode: LayoutMode
+        get() = runCatching { LayoutMode.valueOf(prefs.getString("layoutMode", null) ?: "AUTO") }.getOrDefault(LayoutMode.AUTO)
+        set(value) = prefs.edit { putString("layoutMode", value.name) }
+
+    /** 게임 화면 필터 */
+    var screenFilter: ScreenFilter
+        get() = runCatching { ScreenFilter.valueOf(prefs.getString("screenFilter", null) ?: "SHARP") }.getOrDefault(ScreenFilter.SHARP)
+        set(value) = prefs.edit { putString("screenFilter", value.name) }
+
+    /** 배치 편집으로 저장한 배치(화면 크기 키별, [CustomLayout.serialize]). 없으면 null */
+    fun customLayout(key: String): String? = prefs.getString("customLayout.$key", null)
+
+    /** null이면 삭제(자동 배치로) */
+    fun setCustomLayout(key: String, value: String?) = prefs.edit {
+        if (value == null) remove("customLayout.$key") else putString("customLayout.$key", value)
+    }
+
     /** 현재 설정 기준 유효 볼륨 (pcm, midi — 사운드 off면 0) */
     fun effectiveVolumes(): Pair<Float, Float> =
         if (soundEnabled) pcmVolume to midiVolume else 0f to 0f
@@ -80,7 +108,14 @@ class Settings(context: Context) {
 private enum class SettingsPage { Settings, Licenses }
 
 @Composable
-fun SettingsFlow(settings: Settings, onVolumeChanged: () -> Unit, onClose: () -> Unit) {
+fun SettingsFlow(
+    settings: Settings,
+    onVolumeChanged: () -> Unit,
+    onLayoutModeChanged: (LayoutMode) -> Unit,
+    onScreenFilterChanged: (ScreenFilter) -> Unit,
+    onDiagnostics: () -> Unit,
+    onClose: () -> Unit,
+) {
     var page by remember { mutableStateOf(SettingsPage.Settings) }
     var detail by remember { mutableStateOf<License?>(null) }
 
@@ -101,6 +136,9 @@ fun SettingsFlow(settings: Settings, onVolumeChanged: () -> Unit, onClose: () ->
         else -> SettingsPage(
             settings = settings,
             onVolumeChanged = onVolumeChanged,
+            onLayoutModeChanged = onLayoutModeChanged,
+            onScreenFilterChanged = onScreenFilterChanged,
+            onDiagnostics = onDiagnostics,
             onShowLicenses = { page = SettingsPage.Licenses },
             onBack = onClose,
         )
@@ -135,14 +173,25 @@ private fun CategoryHeader(title: String) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsPage(settings: Settings, onVolumeChanged: () -> Unit, onShowLicenses: () -> Unit, onBack: () -> Unit) {
+private fun SettingsPage(
+    settings: Settings,
+    onVolumeChanged: () -> Unit,
+    onLayoutModeChanged: (LayoutMode) -> Unit,
+    onScreenFilterChanged: (ScreenFilter) -> Unit,
+    onDiagnostics: () -> Unit,
+    onShowLicenses: () -> Unit,
+    onBack: () -> Unit,
+) {
     var soundEnabled by remember { mutableStateOf(settings.soundEnabled) }
     var pcmVolume by remember { mutableStateOf(settings.pcmVolume) }
     var midiVolume by remember { mutableStateOf(settings.midiVolume) }
     var vibrationEnabled by remember { mutableStateOf(settings.vibrationEnabled) }
     var vibrationScale by remember { mutableStateOf(settings.vibrationScale) }
     var keypadHaptics by remember { mutableStateOf(settings.keypadHaptics) }
+    var layoutMode by remember { mutableStateOf(settings.layoutMode) }
+    var screenFilter by remember { mutableStateOf(settings.screenFilter) }
 
     SettingsScaffold(title = stringResource(R.string.settings_title), onBack = onBack) { modifier ->
         Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -234,11 +283,75 @@ private fun SettingsPage(settings: Settings, onVolumeChanged: () -> Unit, onShow
                 },
             )
 
+            CategoryHeader(stringResource(R.string.settings_screen_header))
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_layout)) },
+                supportingContent = {
+                    Column {
+                        Text(stringResource(R.string.settings_layout_desc))
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                            val options = listOf(
+                                LayoutMode.AUTO to R.string.settings_layout_auto,
+                                LayoutMode.STACK to R.string.settings_layout_stack,
+                                LayoutMode.SPLIT to R.string.settings_layout_split,
+                            )
+                            options.forEachIndexed { i, (mode, label) ->
+                                SegmentedButton(
+                                    selected = layoutMode == mode,
+                                    onClick = {
+                                        layoutMode = mode
+                                        settings.layoutMode = mode
+                                        onLayoutModeChanged(mode)
+                                    },
+                                    shape = SegmentedButtonDefaults.itemShape(i, options.size),
+                                ) { Text(stringResource(label)) }
+                            }
+                        }
+                    }
+                },
+                leadingContent = { Icon(Icons.Filled.ViewQuilt, null) },
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_filter)) },
+                supportingContent = {
+                    Column {
+                        Text(stringResource(R.string.settings_filter_desc))
+                        val options = listOf(
+                            ScreenFilter.SHARP to R.string.settings_filter_sharp,
+                            ScreenFilter.SMOOTH to R.string.settings_filter_smooth,
+                            ScreenFilter.SCANLINES to R.string.settings_filter_scanlines,
+                            ScreenFilter.LCD to R.string.settings_filter_lcd,
+                            ScreenFilter.UPSCALE to R.string.settings_filter_upscale,
+                        )
+                        options.forEach { (filter, label) ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    screenFilter = filter
+                                    settings.screenFilter = filter
+                                    onScreenFilterChanged(filter)
+                                },
+                            ) {
+                                RadioButton(selected = screenFilter == filter, onClick = null)
+                                Text(stringResource(label), modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
+                    }
+                },
+                leadingContent = { Icon(Icons.Filled.Tune, null) },
+            )
+
             CategoryHeader(stringResource(R.string.settings_info_header))
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_licenses)) },
                 trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
                 modifier = Modifier.clickable(onClick = onShowLicenses),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_diag_log)) },
+                supportingContent = { Text(stringResource(R.string.settings_diag_log_desc)) },
+                leadingContent = { Icon(Icons.Filled.Share, null) },
+                modifier = Modifier.clickable(onClick = onDiagnostics),
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_version)) },

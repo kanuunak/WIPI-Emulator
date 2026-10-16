@@ -38,8 +38,10 @@ data class StackLayout(
     val gameScale: Float,
     /** 바깥 여백(8dp) 포함 키패드 영역 */
     val keypad: RectDp,
-    /** ⏸·⚙ 아이콘 영역 (게임 우상단, 48dp 터치 2개) */
+    /** ⏸·⚙ 아이콘 영역 (48dp 터치 2개). 게임 오른쪽에 자리가 있으면 게임 밖, 없으면 게임 우상단 위 */
     val icons: RectDp,
+    /** 아이콘이 게임 밖(오른쪽 옆)에 있다 — 넓은 창(메인 화면 가로 등) */
+    val iconsOutside: Boolean,
     /** 게임과 키패드 사이 남는 세로 여백 */
     val gap: Float,
     /** 최소 키 높이로도 키패드가 가용 높이에 안 들어가면 false (게임 0, 키패드는 위로 넘침) */
@@ -51,7 +53,7 @@ data class StackLayout(
             "game=${fmt(game.width)}x${fmt(game.height)}dp@${fmt(game.left)},${fmt(game.top)} " +
             "px=${gamePx.width}x${gamePx.height} scale=${fmt(gameScale, 2)} " +
             "keypad=${fmt(keypad.width)}x${fmt(keypad.height)}dp@${fmt(keypad.left)},${fmt(keypad.top)} " +
-            "gap=${fmt(gap)}" + if (fits) "" else " OVERFLOW"
+            "gap=${fmt(gap)}" + (if (iconsOutside) " icons=out" else "") + if (fits) "" else " OVERFLOW"
 }
 
 const val KEYPAD_ROW_COUNT = 7
@@ -72,6 +74,7 @@ fun keypadHeight(keyH: Float): Float =
  * 4. 게임 높이 < 가용 높이 45%면 keyH를 40dp까지 1dp씩 줄인다
  * 5. 게임이 폭에 막혀 세로가 남으면 그만큼 keyH를 키운다(최대 56dp), 나머지는 게임–키패드 사이 여백
  * 6. 게임은 위·가로 가운데, 키패드는 아래 정렬
+ * 7. ⏸·⚙: 게임 오른쪽 옆에 아이콘 폭만큼 자리가 있으면 게임 밖 위쪽(게임을 안 가림), 없으면 게임 우상단 위에 겹친다(커버 화면)
  */
 fun computeStackLayout(
     availWdp: Float,
@@ -114,7 +117,12 @@ fun computeStackLayout(
     val keypadW = min(w, prefs.maxKeypadWidthDp)
     val keypad = RectDp(left = (w - keypadW) / 2f, top = h - keypadH, width = keypadW, height = keypadH)
     val iconsW = 2 * ICON_TOUCH_DP
-    val icons = RectDp(left = max(0f, game.right - iconsW), top = 0f, width = min(iconsW, w), height = ICON_TOUCH_DP)
+    val iconsOutside = w - game.right >= iconsW
+    val icons = if (iconsOutside) {
+        RectDp(left = game.right, top = 0f, width = iconsW, height = ICON_TOUCH_DP)
+    } else {
+        RectDp(left = max(0f, game.right - iconsW), top = 0f, width = min(iconsW, w), height = ICON_TOUCH_DP)
+    }
 
     val gamePx = RectPx(
         left = (game.left * density).roundToInt(),
@@ -133,6 +141,7 @@ fun computeStackLayout(
         gameScale = gamePx.width.toFloat() / SCREEN_WIDTH,
         keypad = keypad,
         icons = icons,
+        iconsOutside = iconsOutside,
         gap = gap,
         fits = fits,
     )

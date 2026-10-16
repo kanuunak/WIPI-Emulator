@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">폴드 레트로</string>
     <string name="library_empty_title">게임이 없습니다</string>
-    <string name="library_empty_hint">우측 상단 + 로 .zip / .jar 게임을 추가하세요</string>
+    <string name="library_empty_hint">우측 상단 + 로 게임 파일(.zip / .jar)이나 게임 폴더를 추가하세요</string>
     <string name="action_add_game">게임 추가</string>
     <string name="action_settings">설정</string>
     <string name="action_ok">확인</string>
@@ -17,13 +17,13 @@
     <string name="emulator_layout_hud_toggle">레이아웃 정보 표시 전환</string>
     <string name="import_failed_title">임포트 실패</string>
     <string name="import_read_error">파일을 읽을 수 없습니다</string>
+    <string name="action_import_file">게임 파일 (.zip / .jar)</string>
+    <string name="action_import_folder">게임 폴더</string>
     <string name="delete_game_title">게임 삭제</string>
     <string name="delete_game_message">\"%1$s\"을(를) 삭제할까요? 저장 데이터도 함께 삭제됩니다.</string>
     <string name="error_start_failed">게임을 시작할 수 없어요. 다시 시도해 주세요.</string>
-    <string name="error_load_failed">게임을 불러올 수 없어요 — 지원하지 않는 게임이거나 파일이 손상되었을 수 있어요
-(%1$s)</string>
-    <string name="error_runtime">게임 실행 중 오류가 발생했어요 — 이 게임은 아직 완전히 지원되지 않을 수 있어요
-(%1$s)</string>
+    <string name="error_load_failed">게임을 불러올 수 없어요 — 지원하지 않는 게임이거나 파일이 손상되었을 수 있어요</string>
+    <string name="error_runtime">게임 실행 중 오류가 발생했어요 — 이 게임은 아직 완전히 지원되지 않을 수 있어요</string>
     <string name="settings_title">설정</string>
     <string name="settings_sound_header">사운드</string>
     <string name="settings_sound">사운드</string>
@@ -53,4 +53,36 @@
     <string name="license_role_rustysynth">소프트웨어 MIDI 신시사이저</string>
     <string name="license_role_font">게임 화면 글꼴</string>
     <string name="license_role_soundfont">MIDI 사운드폰트</string>
+    <string name="error_previous_stopping">이전 게임을 정리하는 중이에요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="error_previous_stuck">이전 게임이 응답하지 않아 새 게임을 시작할 수 없어요. 앱을 종료한 뒤 다시 열어 주세요.</string>
+    <string name="action_close">닫기</string>
+    <string name="action_close_app">앱 종료</string>
+    <string name="action_diag_log">진단 로그</string>
+    <string name="action_save_file">파일로 저장</string>
+    <string name="action_share">공유</string>
+    <string name="settings_diag_log">진단 로그 저장·공유</string>
+    <string name="settings_diag_log_desc">문제 제보용 — 앱·기기 정보, 마지막 오류, 앱 로그</string>
+    <string name="diag_dialog_title">진단 로그</string>
+    <string name="diag_dialog_message">파일로 저장: 고른 폴더(예: 다운로드)에 남아요.\n공유: 다른 앱으로 바로 보내요. 메시지에는 요약이 들어가고, 전체 로그는 첨부를 받는 앱에만 파일로 붙어요.</string>
+    <string name="diag_saved">진단 로그를 저장했어요</string>
+    <string name="diag_failed">진단 로그를 만들지 못했어요</string>
+    <string name="settings_screen_header">화면</string>
+    <string name="settings_layout">게임 배치</string>
+    <string name="settings_layout_desc">자동: 좁은 화면(커버)은 게임 아래 키패드, 넓은 화면(펼친 화면 가로)은 키패드를 양옆으로 나눔. 직접 배치하려면 게임 중 일시정지 → 배치 편집(저장한 배치가 그 화면에서 우선)</string>
+    <string name="settings_layout_auto">자동</string>
+    <string name="settings_layout_stack">위아래</string>
+    <string name="settings_layout_split">좌우</string>
+    <string name="emulator_edit_layout">배치 편집</string>
+    <string name="editor_split">키패드 나누기</string>
+    <string name="editor_merge">키패드 합치기</string>
+    <string name="editor_reset">기본값</string>
+    <string name="editor_save">저장</string>
+    <string name="editor_hint">끌어서 옮기기 · 모서리 ●를 끌어서 크기 조절 · 이 화면 모양에 저장돼요</string>
+    <string name="settings_filter">화면 필터</string>
+    <string name="settings_filter_desc">크게 키운 게임 그림을 그리는 방식</string>
+    <string name="settings_filter_sharp">선명하게 (픽셀 그대로)</string>
+    <string name="settings_filter_smooth">부드럽게</string>
+    <string name="settings_filter_scanlines">스캔라인 (옛 브라운관)</string>
+    <string name="settings_filter_lcd">LCD 격자 (옛 휴대폰 화면)</string>
+    <string name="settings_filter_upscale">업스케일 (대각선을 매끈하게, Android 13 이상)</string>
 </resources>
