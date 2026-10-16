@@ -8,7 +8,7 @@
 
 ## 절대 규칙
 
-1. `rust/` 아래(wie·RustJava 의존성 포함)는 수정하지 않는다. 필요해 보이면 멈추고 이유를 보고한다. (승인된 예외: `wipi_core/src/session.rs` tick 간격 1ms — 발열, 2026-10-14 / wie를 `kanuunak/wie` 포크로 교체 — KTF DB EOF 읽기 0 채움, 붕어빵타이쿤3, 2026-10-14 / KTF DB 용량 16MB·MC_knlGetAccessLevel, 2026-10-15. wie 수정은 `kanuunak/wie`에 브랜치로 올리고 `rust/Cargo.toml` rev만 바꾼다)
+1. `rust/` 아래(wie·RustJava 의존성 포함)는 수정하지 않는다. 필요해 보이면 멈추고 이유를 보고한다. (승인된 예외: `wipi_core/src/session.rs` tick 간격 1ms — 발열, 2026-10-14 / wie를 `kanuunak/wie` 포크로 교체 — KTF DB EOF 읽기 0 채움, 붕어빵타이쿤3, 2026-10-14 / KTF DB 용량 16MB·MC_knlGetAccessLevel, 2026-10-15 / `wipi_core` 일시정지를 뺀 게임 시계 + 일시정지 때 소리 시퀀스 멈춤(재개 후 멈춤·시간 점프), 2026-10-16. wie 수정은 `kanuunak/wie`에 브랜치로 올리고 `rust/Cargo.toml` rev만 바꾼다)
 2. Kotlin 패키지 `com.parkjeongseop.wipi`, `object WipiNative`, `external fun` 시그니처, `proguard-rules.pro`는 바꾸지 않는다(JNI 심볼 `Java_com_parkjeongseop_wipi_WipiNative_*`에 묶여 있음). 바꾸는 것은 `applicationId`뿐이다.
 3. Composable에서 `WipiNative`를 직접 부르지 않는다. 키는 `KeyInputHub`, 세션·일시정지·볼륨·정지는 `EmulatorSession`을 거친다(Preview·단위 테스트 가능하게).
 4. UI에서 키 반복(auto-repeat)을 만들지 않는다. 코어가 누른 키마다 100ms 간격으로 반복 이벤트를 만든다.

@@ -187,7 +187,7 @@ demo/                                  자체 데모 demo.jar(J2ME), demo_wipi.z
 
 ### 4.3 P2 — 후순위
 
-- (Rust `wipi_core`) 일시정지 시간을 뺀 게임 시계 — 재개 시 시간 점프 해결. 현재 `now()`가 실제 시각(`SystemTime`)이라 재개하면 멈춰 있던 시간만큼 타이머가 한꺼번에 발화한다.
+- ~~(Rust `wipi_core`) 일시정지 시간을 뺀 게임 시계 — 재개 시 시간 점프 해결.~~ 2026-10-16 사용자 승인으로 완료(`PauseClock`, 일시정지 때 소리 시퀀스도 멈췄다 이어서).
 - (Rust `wipi_core`) 일시정지 시 오디오 스트림 실제 정지, 오디오 포커스 처리.
 - ~~`nativeStop()`을 UI 스레드 밖으로(긴 tick 중 종료 시 ANR 예방).~~ Phase 3.5에서 Kotlin으로 완료(`SessionStopper`). 락 밖 join·타임아웃(Rust)은 HANDOFF_Phase3 §5 변경안.
 - 게임별 키 배치 프리셋, 8방향 옵션, Flex 모드(반접힘), 기종별 정밀 튜닝.
