@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
@@ -79,7 +80,7 @@ fun TouchKeypad(
         }
         // 뒤로가기 제스처 제외: 방향키 블록. 숫자만 있는 키패드(좌우 분할의 오른쪽)는 화면 오른쪽 가장자리에 붙으므로 전체
         val exclusionBottom = if (layout.dpadBlockBottom > 0f) layout.dpadBlockBottom else heightPx
-        val labels = remember(layout, textMeasurer, theme.labelSize, theme.palette.label) { measureLabels(textMeasurer, layout, theme) }
+        val labels = remember(layout, textMeasurer, theme) { measureLabels(textMeasurer, layout, theme) }
 
         Canvas(
             modifier = Modifier
@@ -156,8 +157,11 @@ fun TouchKeypad(
 }
 
 private fun measureLabels(textMeasurer: TextMeasurer, layout: KeypadLayout, theme: KeypadTheme): List<TextLayoutResult> {
-    val style = TextStyle(color = Color(theme.palette.label), fontSize = theme.labelSize.sp.sp)
-    return layout.keys.map { textMeasurer.measure(it.key.label, style) }
+    val shadow = if (theme.labelShadow) Shadow(Color.Black.copy(alpha = 0.8f), Offset(0f, 1f), blurRadius = 4f) else null
+    return layout.keys.map {
+        val style = TextStyle(color = Color(theme.labelColor(it.key.cluster)), fontSize = theme.labelSize.sp.sp, shadow = shadow)
+        textMeasurer.measure(it.key.label, style)
+    }
 }
 
 /** 키 그리기(터치 키패드·배치 편집 미리보기·설정의 테마 미리보기가 같이 쓴다). 눌린 키는 [KeypadTheme.pressedColor]로 */
@@ -220,7 +224,7 @@ fun KeypadPreview(
         val widthPx = constraints.maxWidth.toFloat()
         val heightPx = constraints.maxHeight.toFloat()
         val layout = remember(widthPx, heightPx, density, rows) { KeypadModel.layout(widthPx, heightPx, KeypadMetrics(density), rows) }
-        val labels = remember(layout, textMeasurer, theme.labelSize, theme.palette.label) { measureLabels(textMeasurer, layout, theme) }
+        val labels = remember(layout, textMeasurer, theme) { measureLabels(textMeasurer, layout, theme) }
         Canvas(modifier = Modifier.fillMaxSize()) { drawKeys(layout, labels, down, theme) }
     }
 }

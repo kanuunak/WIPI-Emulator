@@ -80,6 +80,23 @@ class KeypadThemeTest {
     }
 
     @Test
+    fun labelAlwaysContrastsWithKey() {
+        // Debug 29 실기기: 반투명(흰 키 + 흰 글자)에서 불투명도를 올리면 글자가 사라졌다
+        for (preset in KeypadPreset.entries) for (step in 2..10) for (cluster in KeyCluster.entries) {
+            val t = KeypadTheme(preset, opacity = step / 10f)
+            val fill = KeypadTheme.mixArgb(KeypadTheme.EMULATOR_BG_ARGB, t.keyColor(cluster) or 0xFF000000, t.opacity)
+            val c = KeypadTheme.contrast(t.labelColor(cluster), fill)
+            assertTrue("$preset ${t.opacity} $cluster 대비 $c", c >= KeypadTheme.MIN_LABEL_CONTRAST)
+        }
+        // 프리셋 기본값에서는 프리셋이 정한 글자색 그대로
+        for (preset in KeypadPreset.entries) for (cluster in KeyCluster.entries) {
+            assertEquals(preset.palette.label, preset.defaults().labelColor(cluster))
+        }
+        assertTrue(KeypadPreset.TRANSLUCENT.defaults().labelShadow)
+        assertTrue(!KeypadTheme.DEFAULT.labelShadow)
+    }
+
+    @Test
     fun mixArgb() {
         assertEquals(0xFF000000, KeypadTheme.mixArgb(0xFF000000, 0xFFFFFFFF, 0f))
         assertEquals(0xFFFFFFFF, KeypadTheme.mixArgb(0xFF000000, 0xFFFFFFFF, 1f))

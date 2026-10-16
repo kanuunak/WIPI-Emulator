@@ -58,13 +58,16 @@ enum class KeypadPreset(
         KeyShape.SQUARE, 1f, LabelSize.MEDIUM,
     ),
 
-    /** 반투명: 게임 위에 겹쳐도 보이도록 흰 알약 키를 옅게, 테두리와 라벨은 또렷하게 */
+    /**
+     * 반투명(어두운 유리): 검은 알약 키를 옅게, 흰 테두리·흰 글자(그림자). 밝은 게임 위에 겹쳐도 글자가 보인다.
+     * (Debug 29 실기기: 흰 키 + 흰 글자는 불투명도를 올리면 글자가 사라졌다)
+     */
     TRANSLUCENT(
         KeyPalette(
-            numKey = 0xFFFFFFFF, dpadKey = 0xFFFFFFFF, funcKey = 0xFFFFFFFF, label = 0xFFFFFFFF,
+            numKey = 0xFF000000, dpadKey = 0xFF000000, funcKey = 0xFF000000, label = 0xFFFFFFFF,
             pressTint = 0xFFFFFFFF, border = 0xFFFFFFFF,
         ),
-        KeyShape.PILL, 0.3f, LabelSize.MEDIUM,
+        KeyShape.PILL, 0.35f, LabelSize.MEDIUM,
     ),
     ;
 
@@ -95,6 +98,20 @@ data class KeypadTheme(
     /** 채움 불투명도. 눌리면 더 진하게(반투명 테마에서도 눌림이 보이게) */
     fun fillAlpha(pressed: Boolean): Float = if (pressed) min(1f, opacity + PRESS_ALPHA_BOOST) else opacity
 
+    /**
+     * 라벨 색: 프리셋 라벨 색이 키(배경 [EMULATOR_BG_ARGB] 위에 투명도대로 겹친 색)와 대비가 [MIN_LABEL_CONTRAST]보다
+     * 낮으면 흰색·검정 중 대비가 큰 쪽. 사용자가 투명도를 바꿔도 글자가 키에 묻히지 않는다.
+     */
+    fun labelColor(cluster: KeyCluster): Long {
+        val fill = mixArgb(EMULATOR_BG_ARGB, keyColor(cluster) or 0xFF000000, opacity)
+        val wanted = palette.label
+        if (contrast(wanted, fill) >= MIN_LABEL_CONTRAST) return wanted
+        return if (contrast(0xFFFFFFFF, fill) >= contrast(0xFF000000, fill)) 0xFFFFFFFF else 0xFF000000
+    }
+
+    /** 키가 옅으면(게임 그림 위에 겹칠 수 있음) 라벨에 그림자를 넣는다 */
+    val labelShadow: Boolean get() = opacity < SHADOW_BELOW_OPACITY
+
     /** 라벨은 키가 옅어도 읽히게 최소 [MIN_LABEL_ALPHA] */
     val labelAlpha: Float get() = maxOf(opacity, MIN_LABEL_ALPHA)
 
@@ -120,6 +137,11 @@ data class KeypadTheme(
         const val MIN_OPACITY = 0.2f
         const val MIN_LABEL_ALPHA = 0.85f
         const val MIN_BORDER_ALPHA = 0.6f
+        const val MIN_LABEL_CONTRAST = 3f
+        const val SHADOW_BELOW_OPACITY = 0.9f
+
+        /** 키패드 뒤 배경색(LayoutHud.kt EMULATOR_BG와 같은 값) */
+        const val EMULATOR_BG_ARGB = 0xFF202020
 
         val DEFAULT = KeypadTheme()
 
@@ -135,6 +157,22 @@ data class KeypadTheme(
             val opacity = fields["opacity"]?.toIntOrNull()?.let { (it / 100f).coerceIn(MIN_OPACITY, 1f) } ?: preset.opacity
             val label = fields["label"]?.let { runCatching { LabelSize.valueOf(it) }.getOrNull() } ?: preset.labelSize
             return KeypadTheme(preset, shape, opacity, label)
+        }
+
+        /** WCAG 상대 휘도(0~1, 알파 무시) */
+        fun luminance(argb: Long): Double {
+            fun ch(shift: Int): Double {
+                val c = ((argb shr shift) and 0xFF) / 255.0
+                return if (c <= 0.03928) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+            }
+            return 0.2126 * ch(16) + 0.7152 * ch(8) + 0.0722 * ch(0)
+        }
+
+        /** WCAG 대비율(1~21) */
+        fun contrast(a: Long, b: Long): Double {
+            val la = luminance(a)
+            val lb = luminance(b)
+            return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
         }
 
         /** ARGB 두 색을 채널별로 섞는다(t=0 → a, t=1 → b) */
