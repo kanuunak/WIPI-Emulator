@@ -11,11 +11,11 @@ import android.graphics.RuntimeShader
 import android.graphics.Shader
 import android.os.Build
 import android.util.Log
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -25,9 +25,38 @@ import kotlin.math.roundToInt
 
 enum class ScreenFilter { SHARP, SMOOTH, SCANLINES, LCD, UPSCALE }
 
-/** 스캔라인·LCD 격자 어둡기(0~1) — 원본 픽셀 한 줄(칸)의 아래(오른쪽) [LINE_FRACTION]만큼을 이만큼 어둡게 */
-private const val LINE_ALPHA = 0.35f
-private const val LINE_FRACTION = 0.3f
+/** 스캔라인: 원본 픽셀 한 줄의 아래쪽 약 1/3을(같은 두께로) 이만큼 어둡게 */
+private const val SCANLINE_FRACTION = 0.34f
+private const val SCANLINE_ALPHA = 0.45f
+
+/** LCD 격자: 원본 픽셀 사이에 1px 선(가로·세로), 옛 휴대폰 액정의 픽셀 틈처럼 옅게 */
+private const val LCD_FRACTION = 0f
+private const val LCD_ALPHA = 0.22f
+
+/**
+ * 스캔라인·LCD 격자 선 위치. 원본 [cells]칸을 화면 [lengthPx] 정수 px로 nearest 확대했을 때 각 칸의 끝(경계)은
+ * 정수 px로 떨어지지만 칸 크기는 들쭉날쭉하다(예: 배율 3.76 → 3·4·4·4·3…). 선을 반복 무늬로 그리면 실제 픽셀에
+ * 걸쳐 두께가 1·2px로 섞이고 흐려져 "규칙 없는 줄/바둑판"이 된다(실기기 Debug 26). 그래서 칸 경계마다 같은 두께의
+ * 정수 px 선을 그 칸 안쪽 끝에 둔다.
+ */
+object ScreenLines {
+    /**
+     * 각 칸 끝의 선 [시작, 끝) px 목록. 두께 = 칸 크기 × [fraction]을 반올림(최소 1px, 칸에 최소 1px은 남김).
+     * 칸이 2px보다 작으면 선을 그릴 자리가 없어 빈 목록.
+     * 경계는 nearest 샘플링과 같다: 화면 px y는 원본 floor((y + 0.5) / 배율)을 그리므로 k번째 경계 = ceil(k·배율 − 0.5).
+     */
+    fun lines(lengthPx: Int, cells: Int, fraction: Float): List<Pair<Int, Int>> {
+        if (cells <= 0 || lengthPx <= 0) return emptyList()
+        val scale = lengthPx.toFloat() / cells
+        val minCell = kotlin.math.floor(scale).toInt()
+        if (minCell < 2) return emptyList()
+        val thickness = (scale * fraction).roundToInt().coerceIn(1, minCell - 1)
+        return (1..cells).map { k ->
+            val boundary = if (k == cells) lengthPx else kotlin.math.ceil(k * scale - 0.5f).toInt()
+            (boundary - thickness) to boundary
+        }
+    }
+}
 
 /**
  * EPX(Scale2x) 규칙: 원본 픽셀 P를 2×2로 나눈 각 칸에서, 그 칸 쪽 두 이웃이 같고 반대쪽 이웃과 다르면 그 이웃 색.
@@ -140,28 +169,30 @@ class GameRenderer(private val bitmap: Bitmap) {
             else -> drawImage(frame, dstSize = dst, filterQuality = FilterQuality.None)
         }
         if (filter == ScreenFilter.SCANLINES || filter == ScreenFilter.LCD) {
-            val rowH = size.height / bitmap.height
-            drawRect(lineBrush(rowH, vertical = true), size = size)
-            if (filter == ScreenFilter.LCD) {
-                val colW = size.width / bitmap.width
-                drawRect(lineBrush(colW, vertical = false), size = size)
-            }
+            val alpha = if (filter == ScreenFilter.LCD) LCD_ALPHA else SCANLINE_ALPHA
+            drawPath(linePath(dst, filter), Color.Black.copy(alpha = alpha))
         }
     }
 
-    /** 원본 픽셀 한 칸([cell] px)마다 끝부분 [LINE_FRACTION]을 어둡게 하는 반복 그라디언트(한 번의 drawRect) */
-    private fun lineBrush(cell: Float, vertical: Boolean): Brush {
-        val dark = Color.Black.copy(alpha = LINE_ALPHA)
-        val stops = arrayOf(
-            0f to Color.Transparent,
-            1f - LINE_FRACTION to Color.Transparent,
-            1f - LINE_FRACTION to dark,
-            1f to dark,
-        )
-        return if (vertical) {
-            Brush.verticalGradient(*stops, startY = 0f, endY = cell, tileMode = TileMode.Repeated)
-        } else {
-            Brush.horizontalGradient(*stops, startX = 0f, endX = cell, tileMode = TileMode.Repeated)
+    private var lineKey: Pair<IntSize, ScreenFilter>? = null
+    private var lineCache: Path = Path()
+
+    /** 선 경로(크기·필터가 바뀔 때만 다시 만든다). 가로선 = 원본 행 경계, LCD는 세로선(열 경계)도. */
+    private fun linePath(dst: IntSize, filter: ScreenFilter): Path {
+        val key = dst to filter
+        if (key == lineKey) return lineCache
+        val path = Path()
+        val fraction = if (filter == ScreenFilter.LCD) LCD_FRACTION else SCANLINE_FRACTION
+        ScreenLines.lines(dst.height, bitmap.height, fraction).forEach { (a, b) ->
+            path.addRect(Rect(0f, a.toFloat(), dst.width.toFloat(), b.toFloat()))
         }
+        if (filter == ScreenFilter.LCD) {
+            ScreenLines.lines(dst.width, bitmap.width, fraction).forEach { (a, b) ->
+                path.addRect(Rect(a.toFloat(), 0f, b.toFloat(), dst.height.toFloat()))
+            }
+        }
+        lineKey = key
+        lineCache = path
+        return path
     }
 }
