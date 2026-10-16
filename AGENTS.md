@@ -3,6 +3,7 @@
 목표: Galaxy Z Fold5 커버 화면에서 위 게임 + 아래 터치 키패드로 WIPI/SKVM/J2ME 게임을 편하게 플레이한다.
 - 명세: `docs/fold-retro/Fold_Retro_Phone_MVP_v0.3.md` — 작업 전에 해당 절을 반드시 읽는다.
 - 실행 가이드(Phase 프롬프트·CI·클라우드 환경): `docs/fold-retro/Implementation_Guide_v0.3.md`
+- **최신 인계: `docs/fold-retro/HANDOFF_Phase3.5.md`** — 현재 상태, 확립된 절차(코어 포크 수정 등), 다음 Phase 프롬프트(3.6 스킨, 개정 Phase 4). 명세·가이드보다 우선.
 - 원작자 개발 메모 `CLAUDE.md`는 참고용이다. 그중 빌드 경로(macOS), wie rev(b75a03c1), "path 의존성" 서술은 낡았다. 실제 기준은 `rust/Cargo.toml`(`kanuunak/wie` @ d45b8a7c = ParkJeongseop/wie 38f7e04f + 우리 수정 2건)과 명세 §6.3.
 
 ## 절대 규칙
