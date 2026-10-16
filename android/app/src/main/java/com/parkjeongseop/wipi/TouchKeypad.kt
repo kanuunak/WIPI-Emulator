@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.pointer.PointerId
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -87,71 +88,86 @@ fun TouchKeypad(
                 .fillMaxSize()
                 .systemGestureExclusion { Rect(0f, 0f, it.size.width.toFloat(), exclusionBottom) }
                 .pointerInput(layout, hub) {
-                    fun at(x: Float, y: Float) = "${(x / density).roundToInt()},${(y / density).roundToInt()}"
-
-                    awaitPointerEventScope {
-                        val active = HashMap<PointerId, KeyDef>()
-                        fun source(id: PointerId) = "touch:${id.value}"
-                        try {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                for (change in event.changes) {
-                                    val id = change.id
-                                    val x = change.position.x
-                                    val y = change.position.y
-                                    var current = active[id]
-                                    // 허브가 이미 놓은 손가락(일시정지·포커스 상실의 releaseAll)은 떼기 전까지 무시
-                                    if (current != null && !hub.holds(source(id))) {
-                                        trace("#${id.value} ${current.code} dropped (hub released)")
-                                        active.remove(id)
-                                        current = null
-                                    }
-                                    when {
-                                        !change.pressed -> if (current != null) {
-                                            active.remove(id)
-                                            hub.release(source(id))
-                                            // Compose의 취소 이벤트는 시각이 직전과 같다(실제 뗌은 시각이 흐름)
-                                            val why = if (change.uptimeMillis == change.previousUptimeMillis) "CANCEL" else "up"
-                                            trace("#${id.value} ${current.code} $why @${at(x, y)}")
-                                        }
-                                        current == null -> if (change.changedToDownIgnoreConsumed()) {
-                                            val key = layout.hitTestInitial(x, y)
-                                            if (key != null) {
-                                                active[id] = key
-                                                hub.press(source(id), key.code)
-                                                feedback()
-                                            }
-                                            trace("#${id.value} down ${key?.code ?: "-"} @${at(x, y)}")
-                                        }
-                                        layout.isBeyondLeave(x, y) -> {
-                                            active.remove(id)
-                                            hub.release(source(id))
-                                            trace("#${id.value} ${current.code} left area @${at(x, y)}")
-                                        }
-                                        else -> {
-                                            val next = layout.hitTestMove(current, x, y)
-                                            if (next != current) {
-                                                active[id] = next
-                                                hub.move(source(id), next.code)
-                                                feedback()
-                                                trace("#${id.value} ${current.code}>${next.code} @${at(x, y)}")
-                                            }
-                                        }
-                                    }
-                                    change.consume()
-                                }
-                                pressed = active.values.mapTo(HashSet()) { it.code }
-                            }
-                        } finally {
-                            if (active.isNotEmpty()) trace("loop end: release ${active.values.joinToString { it.code }}")
-                            active.keys.forEach { hub.release(source(it)) }
-                            active.clear()
-                            pressed = emptySet()
-                        }
-                    }
+                    handleKeypadPointers(layout, hub, onPressed = { pressed = it }, feedback = { feedback() }, trace = { trace(it) })
                 },
         ) {
             drawKeys(layout, labels, pressed, theme)
+        }
+    }
+}
+
+/**
+ * 키패드 터치 처리(명세 §5.2.3) — 터치 키패드와 스킨이 같이 쓴다. 손가락마다 source `touch:<pointerId>`로 허브에
+ * press / move / release, 뗌은 `change.pressed == false`, 루프가 끝나면 finally에서 전부 release.
+ * [layout]의 사각형으로 누르기·슬라이드를 판정하고 [onPressed]로 지금 눌린 키 코드들을 알린다(그리기용).
+ */
+suspend fun PointerInputScope.handleKeypadPointers(
+    layout: KeypadLayout,
+    hub: KeyInputHub,
+    onPressed: (Set<String>) -> Unit,
+    feedback: () -> Unit,
+    trace: (String) -> Unit,
+) {
+    fun at(x: Float, y: Float) = "${(x / density).roundToInt()},${(y / density).roundToInt()}"
+
+    awaitPointerEventScope {
+        val active = HashMap<PointerId, KeyDef>()
+        fun source(id: PointerId) = "touch:${id.value}"
+        try {
+            while (true) {
+                val event = awaitPointerEvent()
+                for (change in event.changes) {
+                    val id = change.id
+                    val x = change.position.x
+                    val y = change.position.y
+                    var current = active[id]
+                    // 허브가 이미 놓은 손가락(일시정지·포커스 상실의 releaseAll)은 떼기 전까지 무시
+                    if (current != null && !hub.holds(source(id))) {
+                        trace("#${id.value} ${current.code} dropped (hub released)")
+                        active.remove(id)
+                        current = null
+                    }
+                    when {
+                        !change.pressed -> if (current != null) {
+                            active.remove(id)
+                            hub.release(source(id))
+                            // Compose의 취소 이벤트는 시각이 직전과 같다(실제 뗌은 시각이 흐름)
+                            val why = if (change.uptimeMillis == change.previousUptimeMillis) "CANCEL" else "up"
+                            trace("#${id.value} ${current.code} $why @${at(x, y)}")
+                        }
+                        current == null -> if (change.changedToDownIgnoreConsumed()) {
+                            val key = layout.hitTestInitial(x, y)
+                            if (key != null) {
+                                active[id] = key
+                                hub.press(source(id), key.code)
+                                feedback()
+                            }
+                            trace("#${id.value} down ${key?.code ?: "-"} @${at(x, y)}")
+                        }
+                        layout.isBeyondLeave(x, y) -> {
+                            active.remove(id)
+                            hub.release(source(id))
+                            trace("#${id.value} ${current.code} left area @${at(x, y)}")
+                        }
+                        else -> {
+                            val next = layout.hitTestMove(current, x, y)
+                            if (next != current) {
+                                active[id] = next
+                                hub.move(source(id), next.code)
+                                feedback()
+                                trace("#${id.value} ${current.code}>${next.code} @${at(x, y)}")
+                            }
+                        }
+                    }
+                    change.consume()
+                }
+                onPressed(active.values.mapTo(HashSet()) { it.code })
+            }
+        } finally {
+            if (active.isNotEmpty()) trace("loop end: release ${active.values.joinToString { it.code }}")
+            active.keys.forEach { hub.release(source(it)) }
+            active.clear()
+            onPressed(emptySet())
         }
     }
 }

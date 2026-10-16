@@ -67,6 +67,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -113,6 +114,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var library: GameLibrary
     private lateinit var settings: Settings
     private lateinit var haptics: Haptics
+    private lateinit var skinStore: SkinStore
 
     /** 게임 화면 배치 설정(설정 오버레이에서 바꾸면 바로 다시 배치) */
     private var layoutMode by mutableStateOf(LayoutMode.AUTO)
@@ -122,6 +124,10 @@ class MainActivity : ComponentActivity() {
 
     /** 키패드 테마(설정에서 바꾸면 바로 반영) */
     private var keypadTheme by mutableStateOf(KeypadTheme.DEFAULT)
+
+    /** 스킨 팩 id("" = 스킨 없음)와 키 영역 표시(설정에서 바꾸면 바로 반영) */
+    private var skinId by mutableStateOf("")
+    private var showSkinKeyAreas by mutableStateOf(false)
 
     /** 배치 편집으로 저장·삭제할 때마다 증가 → 저장한 배치를 다시 읽는다 */
     private var customLayoutVersion by mutableIntStateOf(0)
@@ -139,6 +145,10 @@ class MainActivity : ComponentActivity() {
         layoutMode = settings.layoutMode
         screenFilter = settings.screenFilter
         keypadTheme = settings.keypadTheme
+        skinStore = SkinStore(this)
+        lifecycleScope.launch(Dispatchers.IO) { skinStore.installBuiltIns() }
+        skinId = settings.skinId
+        showSkinKeyAreas = settings.showSkinKeyAreas
 
         setContent {
             WipiTheme {
@@ -220,6 +230,9 @@ class MainActivity : ComponentActivity() {
                     onLayoutModeChanged = { layoutMode = it },
                     onScreenFilterChanged = { screenFilter = it },
                     onKeypadThemeChanged = { keypadTheme = it },
+                    skinStore = skinStore,
+                    onSkinChanged = { skinId = it },
+                    onSkinKeyAreasChanged = { showSkinKeyAreas = it },
                     onDiagnostics = { showDiagnostics = true },
                     onClose = { showSettings = false },
                 )
@@ -505,6 +518,32 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // ⏸·⚙: 일시정지 + 설정. ⚙ 길게 누르기 = 레이아웃 HUD 켜기/끄기. 스킨 위에서는 어두운 바탕을 깔아 보이게 한다
+        @Composable
+        fun IconRow(modifier: Modifier, backdrop: Boolean) {
+            Row(modifier = if (backdrop) modifier.background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(24.dp)) else modifier) {
+                IconButton(onClick = { EmulatorSession.pause(PauseReason.USER) }) {
+                    Icon(Icons.Filled.Pause, stringResource(R.string.emulator_paused), tint = Color.White.copy(alpha = if (backdrop) 0.85f else 0.6f))
+                }
+                Box(
+                    modifier = Modifier
+                        .size(ICON_TOUCH_DP.dp)
+                        .combinedClickable(
+                            role = Role.Button,
+                            onLongClickLabel = stringResource(R.string.emulator_layout_hud_toggle),
+                            onLongClick = { showHud = !showHud },
+                            onClick = onSettings,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.Settings, stringResource(R.string.action_settings), tint = Color.White.copy(alpha = if (backdrop) 0.85f else 0.6f))
+                }
+            }
+        }
+
+        // 스킨(설정 > 화면 > 스킨): 고른 팩을 읽어 둔다. 배치는 화면 모양에 가장 가까운 것 — 그림은 배치가 바뀔 때만 다시 읽는다
+        val skinEntry = remember(skinId) { skinStore.get(skinId) }
+
         // 바깥: 시스템 바 뒤까지 배경을 칠한다(edge-to-edge). 크기 = 창(콘텐츠) 크기
         BoxWithConstraints(modifier = Modifier.fillMaxSize().background(EMULATOR_BG)) {
             val windowW = maxWidth.value
@@ -522,6 +561,16 @@ class MainActivity : ComponentActivity() {
                 }
                 val metrics = layoutMetrics(windowW, windowH, layout)
                 LaunchedEffect(metrics) { Log.i(LOG_TAG, metrics.logLine) }
+
+                val skinLayout = skinEntry?.let { SkinPack.chooseLayout(it.spec, maxWidth.value, maxHeight.value) }
+                val skinLoad by produceState<SkinLoad>(SkinLoad.Loading, skinEntry, skinLayout) {
+                    value = if (skinEntry == null || skinLayout == null) SkinLoad.None else withContext(Dispatchers.IO) {
+                        skinStore.loadBitmaps(skinEntry, skinLayout)
+                            ?.let { SkinLoad.Loaded(LoadedSkin(skinLayout, it.body.asImageBitmap(), it.pressed?.asImageBitmap())) }
+                            ?: SkinLoad.None.also { Log.w(LOG_TAG, "skin ${skinEntry.name}: image load failed, using keypad") }
+                    }
+                }
+                val loaded = (skinLoad as? SkinLoad.Loaded)?.skin
 
                 if (editing) {
                     LayoutEditor(
@@ -543,6 +592,21 @@ class MainActivity : ComponentActivity() {
                             editing = false
                         },
                     )
+                } else if (loaded != null) {
+                    SkinScreen(
+                        skin = loaded,
+                        hub = EmulatorSession.hub,
+                        onFeedback = { if (settings.keypadHaptics) haptics.keyTap() },
+                        onTrace = InputTrace::add,
+                        showKeyAreas = showSkinKeyAreas,
+                        drawGame = { if (EmulatorSession.frameVersion > 0) with(renderer) { draw(frameImage, screenFilter) } },
+                        iconsWdp = 2 * ICON_TOUCH_DP,
+                        iconsHdp = ICON_TOUCH_DP,
+                        icons = { IconRow(Modifier, backdrop = true) },
+                    )
+                    if (showHud) LayoutHud(metrics, InputTrace.lines, cpuLines)
+                } else if (skinLoad == SkinLoad.Loading) {
+                    // 스킨 그림을 읽는 중(짧다) — 키패드가 잠깐 보였다 바뀌지 않게 비워 둔다
                 } else {
                 // 게임: draw 단계에서만 frameVersion을 읽어 새 프레임마다 다시 그리기만 한다
                 // 필터(설정 > 화면 > 화면 필터)도 draw 단계에서 읽는다
@@ -575,25 +639,7 @@ class MainActivity : ComponentActivity() {
 
                 if (showHud) LayoutHud(metrics, InputTrace.lines, cpuLines)
 
-                // 게임 우상단(안전 영역 안): 일시정지 + 설정. ⚙ 길게 누르기 = 레이아웃 HUD 켜기/끄기
-                Row(modifier = Modifier.offset(layout.icons.left.dp, layout.icons.top.dp)) {
-                    IconButton(onClick = { EmulatorSession.pause(PauseReason.USER) }) {
-                        Icon(Icons.Filled.Pause, stringResource(R.string.emulator_paused), tint = Color.White.copy(alpha = 0.6f))
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(ICON_TOUCH_DP.dp)
-                            .combinedClickable(
-                                role = Role.Button,
-                                onLongClickLabel = stringResource(R.string.emulator_layout_hud_toggle),
-                                onLongClick = { showHud = !showHud },
-                                onClick = onSettings,
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Filled.Settings, stringResource(R.string.action_settings), tint = Color.White.copy(alpha = 0.6f))
-                    }
-                }
+                IconRow(Modifier.offset(layout.icons.left.dp, layout.icons.top.dp), backdrop = false)
                 }
             }
 
@@ -615,10 +661,13 @@ class MainActivity : ComponentActivity() {
                         Text(stringResource(R.string.emulator_paused), color = Color.White, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp))
                         Text(stringResource(R.string.emulator_resume_hint), color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
                         // 배치 편집: 게임은 일시정지된 채로 편집 화면을 연다(닫으면 다시 이 메뉴)
-                        OutlinedButton(onClick = { editing = true }, modifier = Modifier.padding(top = 24.dp)) {
-                            Text(stringResource(R.string.emulator_edit_layout), color = Color.White)
+                        // 스킨을 쓰는 중이면 배치는 스킨이 정한다 → 배치 편집 없음
+                        if (skinEntry == null) {
+                            OutlinedButton(onClick = { editing = true }, modifier = Modifier.padding(top = 24.dp)) {
+                                Text(stringResource(R.string.emulator_edit_layout), color = Color.White)
+                            }
                         }
-                        Button(onClick = onExit, modifier = Modifier.padding(top = 12.dp)) {
+                        Button(onClick = onExit, modifier = Modifier.padding(top = if (skinEntry == null) 12.dp else 24.dp)) {
                             Text(stringResource(R.string.emulator_exit))
                         }
                     }
@@ -846,4 +895,11 @@ private fun DiagnosticsDialog(onSave: () -> Unit, onShare: () -> Unit, onDismiss
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
+}
+
+/** 스킨 그림 읽기 상태 */
+private sealed interface SkinLoad {
+    data object Loading : SkinLoad
+    data object None : SkinLoad
+    data class Loaded(val skin: LoadedSkin) : SkinLoad
 }

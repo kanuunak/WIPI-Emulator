@@ -8,6 +8,7 @@
     <string name="action_ok">OK</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_delete">Delete</string>
+    <string name="action_copy">Copy</string>
     <string name="action_done">Done</string>
     <string name="action_back">Back</string>
     <string name="emulator_loading">Loading…</string>
@@ -85,6 +86,14 @@
     <string name="settings_filter_scanlines">Scanlines (old CRT)</string>
     <string name="settings_filter_lcd">LCD grid (old phone screen)</string>
     <string name="settings_filter_upscale">Upscale (smooth diagonals, Android 13+)</string>
+    <string name="settings_skin">Skin</string>
+    <string name="settings_skin_desc">A phone picture with the game screen and keys on it. With no skin, the keypad theme and layout below are used.</string>
+    <string name="settings_skin_none">None (keypad theme)</string>
+    <string name="settings_skin_import">Import skin pack (.zip)</string>
+    <string name="settings_skin_key_areas">Show key areas (for making skins)</string>
+    <string name="settings_skin_import_failed">Could not import skin</string>
+    <string name="settings_skin_import_warnings">Skin imported — please check</string>
+    <string name="settings_skin_delete_title">Delete skin \"%1$s\"?</string>
     <string name="settings_keypad_theme">Keypad theme</string>
     <string name="settings_keypad_theme_desc">Key colors, shape, transparency and label size</string>
     <string name="settings_keypad_theme_gray">Basic gray</string>

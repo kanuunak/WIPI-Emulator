@@ -7,6 +7,19 @@ package com.parkjeongseop.wipi
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -105,6 +118,16 @@ class Settings(context: Context) {
         get() = KeypadTheme.parse(prefs.getString("keypadTheme", null)) ?: KeypadTheme.DEFAULT
         set(value) = prefs.edit { putString("keypadTheme", value.serialize()) }
 
+    /** 스킨 팩 id(SkinStore). "" = 스킨 없음(키패드 테마 + 배치 설정) */
+    var skinId: String
+        get() = prefs.getString("skinId", null) ?: ""
+        set(value) = prefs.edit { putString("skinId", value) }
+
+    /** 스킨의 키 영역·화면 자리를 선으로 표시(스킨 만들 때 확인용) */
+    var showSkinKeyAreas: Boolean
+        get() = prefs.getBoolean("showSkinKeyAreas", false)
+        set(value) = prefs.edit { putBoolean("showSkinKeyAreas", value) }
+
     /** 배치 편집으로 저장한 배치(화면 크기 키별, [CustomLayout.serialize]). 없으면 null */
     fun customLayout(key: String): String? = prefs.getString("customLayout.$key", null)
 
@@ -129,6 +152,9 @@ fun SettingsFlow(
     onLayoutModeChanged: (LayoutMode) -> Unit,
     onScreenFilterChanged: (ScreenFilter) -> Unit,
     onKeypadThemeChanged: (KeypadTheme) -> Unit,
+    skinStore: SkinStore,
+    onSkinChanged: (String) -> Unit,
+    onSkinKeyAreasChanged: (Boolean) -> Unit,
     onDiagnostics: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -155,6 +181,9 @@ fun SettingsFlow(
             onLayoutModeChanged = onLayoutModeChanged,
             onScreenFilterChanged = onScreenFilterChanged,
             onKeypadThemeChanged = onKeypadThemeChanged,
+            skinStore = skinStore,
+            onSkinChanged = onSkinChanged,
+            onSkinKeyAreasChanged = onSkinKeyAreasChanged,
             onDiagnostics = onDiagnostics,
             onShowLicenses = { page = SettingsPage.Licenses },
             onBack = onClose,
@@ -198,6 +227,9 @@ private fun SettingsPage(
     onLayoutModeChanged: (LayoutMode) -> Unit,
     onScreenFilterChanged: (ScreenFilter) -> Unit,
     onKeypadThemeChanged: (KeypadTheme) -> Unit,
+    skinStore: SkinStore,
+    onSkinChanged: (String) -> Unit,
+    onSkinKeyAreasChanged: (Boolean) -> Unit,
     onDiagnostics: () -> Unit,
     onShowLicenses: () -> Unit,
     onBack: () -> Unit,
@@ -211,6 +243,7 @@ private fun SettingsPage(
     var layoutMode by remember { mutableStateOf(settings.layoutMode) }
     var screenFilter by remember { mutableStateOf(settings.screenFilter) }
     var keypadTheme by remember { mutableStateOf(settings.keypadTheme) }
+    var skinId by remember { mutableStateOf(settings.skinId) }
 
     SettingsScaffold(title = stringResource(R.string.settings_title), onBack = onBack) { modifier ->
         Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -359,10 +392,27 @@ private fun SettingsPage(
                 },
                 leadingContent = { Icon(Icons.Filled.Tune, null) },
             )
-            KeypadThemeItem(keypadTheme) {
-                keypadTheme = it
-                settings.keypadTheme = it
-                onKeypadThemeChanged(it)
+            SkinItem(
+                store = skinStore,
+                selected = skinId,
+                showKeyAreas = settings.showSkinKeyAreas,
+                onSelect = {
+                    skinId = it
+                    settings.skinId = it
+                    onSkinChanged(it)
+                },
+                onShowKeyAreas = {
+                    settings.showSkinKeyAreas = it
+                    onSkinKeyAreasChanged(it)
+                },
+            )
+            // 키패드 테마는 스킨이 없을 때만 쓴다(스킨은 키 그림까지 정한다)
+            if (skinId.isEmpty() || skinStore.get(skinId) == null) {
+                KeypadThemeItem(keypadTheme) {
+                    keypadTheme = it
+                    settings.keypadTheme = it
+                    onKeypadThemeChanged(it)
+                }
             }
 
             CategoryHeader(stringResource(R.string.settings_info_header))
@@ -477,6 +527,100 @@ private fun KeypadThemeItem(theme: KeypadTheme, onChange: (KeypadTheme) -> Unit)
         },
         leadingContent = { Icon(Icons.Filled.Dialpad, null) },
     )
+}
+
+// ── 스킨: 없음 / 가져온 스킨 팩들 + [가져오기] + 키 영역 표시. 가져오기 실패는 검사 원문을 보여 주고 복사할 수 있다 ──
+
+@Composable
+private fun SkinItem(
+    store: SkinStore,
+    selected: String,
+    showKeyAreas: Boolean,
+    onSelect: (String) -> Unit,
+    onShowKeyAreas: (Boolean) -> Unit,
+) {
+    var skins by remember { mutableStateOf(store.list()) }
+    var keyAreas by remember { mutableStateOf(showKeyAreas) }
+    var report by remember { mutableStateOf<SkinImportResult?>(null) }
+    var deleting by remember { mutableStateOf<SkinEntry?>(null) }
+    val scope = rememberCoroutineScope()
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { store.import(uri) }
+            skins = store.list()
+            result.entry?.let { onSelect(it.id) }
+            if (result.entry == null || result.warnings.isNotEmpty()) report = result
+        }
+    }
+
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.settings_skin)) },
+        supportingContent = {
+            Column {
+                Text(stringResource(R.string.settings_skin_desc))
+                SkinChoiceRow(stringResource(R.string.settings_skin_none), selected.isEmpty() || skins.none { it.id == selected }, onClick = { onSelect("") })
+                skins.forEach { skin ->
+                    SkinChoiceRow(skin.name, selected == skin.id, onClick = { onSelect(skin.id) }, onDelete = { deleting = skin })
+                }
+                TextButton(onClick = { importer.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) }) {
+                    Icon(Icons.Filled.Add, null)
+                    Text(stringResource(R.string.settings_skin_import), modifier = Modifier.padding(start = 4.dp))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.settings_skin_key_areas), modifier = Modifier.weight(1f))
+                    Switch(checked = keyAreas, onCheckedChange = {
+                        keyAreas = it
+                        onShowKeyAreas(it)
+                    })
+                }
+            }
+        },
+        leadingContent = { Icon(Icons.Filled.PhoneAndroid, null) },
+    )
+
+    report?.let { r ->
+        val clipboard = LocalClipboardManager.current
+        val text = (r.errors.map { "ERROR: $it" } + r.warnings.map { "WARN: $it" }).joinToString("\n")
+        AlertDialog(
+            onDismissRequest = { report = null },
+            title = { Text(stringResource(if (r.entry == null) R.string.settings_skin_import_failed else R.string.settings_skin_import_warnings)) },
+            text = {
+                Text(text, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.verticalScroll(rememberScrollState()))
+            },
+            confirmButton = { TextButton(onClick = { report = null }) { Text(stringResource(R.string.action_ok)) } },
+            dismissButton = {
+                TextButton(onClick = { clipboard.setText(AnnotatedString(text)) }) { Text(stringResource(R.string.action_copy)) }
+            },
+        )
+    }
+
+    deleting?.let { skin ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text(stringResource(R.string.settings_skin_delete_title, skin.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    store.delete(skin.id)
+                    skins = store.list()
+                    if (selected == skin.id) onSelect("")
+                    deleting = null
+                }) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+}
+
+@Composable
+private fun SkinChoiceRow(label: String, selected: Boolean, onClick: () -> Unit, onDelete: (() -> Unit)? = null) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        RadioButton(selected = selected, onClick = null)
+        Text(label, modifier = Modifier.padding(start = 8.dp).weight(1f))
+        if (onDelete != null) {
+            IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, stringResource(R.string.action_delete)) }
+        }
+    }
 }
 
 /** 테마 미리보기 뒤 무늬(게임 화면 대신): 굵은 대각선 줄무늬 */
