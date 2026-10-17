@@ -226,6 +226,8 @@ pub fn set_paused(paused: bool) {
     let session = SESSION.lock().unwrap();
     if let Some(session) = session.as_ref() {
         session.paused.store(paused, Ordering::SeqCst);
+        // 게임 시계·소리 시퀀스도 멈춘다(재개 때 시간 점프 없음 — Fold Retro, 2026-10-16 사용자 승인)
+        session.platform.set_paused(paused);
     }
 }
 

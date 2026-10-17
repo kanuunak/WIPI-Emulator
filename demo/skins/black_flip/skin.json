@@ -1,0 +1,429 @@
+{
+  "format": 1,
+  "name": "Black flip (drawn)",
+  "names": {
+    "ko": "검정 폴더폰 (그림)"
+  },
+  "layouts": [
+    {
+      "image": "body_portrait.png",
+      "pressed": "pressed_portrait.png",
+      "size": [
+        904,
+        2316
+      ],
+      "background": "#141414",
+      "screen": [
+        92,
+        128,
+        720,
+        960
+      ],
+      "keys": {
+        "SOFT_L": {
+          "rect": [
+            64,
+            1300,
+            196,
+            92
+          ],
+          "shape": "round",
+          "radius": 46
+        },
+        "SOFT_R": {
+          "rect": [
+            644,
+            1300,
+            196,
+            92
+          ],
+          "shape": "round",
+          "radius": 46
+        },
+        "CALL": {
+          "rect": [
+            64,
+            1610,
+            196,
+            92
+          ],
+          "shape": "round",
+          "radius": 46
+        },
+        "CLR": {
+          "rect": [
+            644,
+            1610,
+            196,
+            92
+          ],
+          "shape": "round",
+          "radius": 46
+        },
+        "1": {
+          "rect": [
+            64,
+            1735,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "2": {
+          "rect": [
+            330,
+            1735,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "3": {
+          "rect": [
+            596,
+            1735,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "4": {
+          "rect": [
+            64,
+            1867,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "5": {
+          "rect": [
+            330,
+            1867,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "6": {
+          "rect": [
+            596,
+            1867,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "7": {
+          "rect": [
+            64,
+            1999,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "8": {
+          "rect": [
+            330,
+            1999,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "9": {
+          "rect": [
+            596,
+            1999,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "*": {
+          "rect": [
+            64,
+            2131,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "0": {
+          "rect": [
+            330,
+            2131,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "#": {
+          "rect": [
+            596,
+            2131,
+            244,
+            112
+          ],
+          "shape": "round",
+          "radius": 50
+        },
+        "UP": [
+          380,
+          1320,
+          144,
+          113
+        ],
+        "DOWN": [
+          380,
+          1577,
+          144,
+          113
+        ],
+        "LEFT": [
+          267,
+          1433,
+          113,
+          144
+        ],
+        "RIGHT": [
+          524,
+          1433,
+          113,
+          144
+        ],
+        "OK": {
+          "rect": [
+            380,
+            1433,
+            144,
+            144
+          ],
+          "shape": "oval"
+        }
+      }
+    },
+    {
+      "image": "body_landscape.png",
+      "pressed": "pressed_landscape.png",
+      "size": [
+        2000,
+        1560
+      ],
+      "background": "#141414",
+      "screen": [
+        515,
+        110,
+        970,
+        1293
+      ],
+      "keys": {
+        "SOFT_L": {
+          "rect": [
+            50,
+            330,
+            190,
+            104
+          ],
+          "shape": "round",
+          "radius": 52
+        },
+        "SOFT_R": {
+          "rect": [
+            270,
+            330,
+            190,
+            104
+          ],
+          "shape": "round",
+          "radius": 52
+        },
+        "CALL": {
+          "rect": [
+            50,
+            1086,
+            190,
+            104
+          ],
+          "shape": "round",
+          "radius": 52
+        },
+        "CLR": {
+          "rect": [
+            270,
+            1086,
+            190,
+            104
+          ],
+          "shape": "round",
+          "radius": 52
+        },
+        "1": {
+          "rect": [
+            1528,
+            380,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "2": {
+          "rect": [
+            1674,
+            380,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "3": {
+          "rect": [
+            1820,
+            380,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "4": {
+          "rect": [
+            1528,
+            576,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "5": {
+          "rect": [
+            1674,
+            576,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "6": {
+          "rect": [
+            1820,
+            576,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "7": {
+          "rect": [
+            1528,
+            772,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "8": {
+          "rect": [
+            1674,
+            772,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "9": {
+          "rect": [
+            1820,
+            772,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "*": {
+          "rect": [
+            1528,
+            968,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "0": {
+          "rect": [
+            1674,
+            968,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "#": {
+          "rect": [
+            1820,
+            968,
+            134,
+            170
+          ],
+          "shape": "round",
+          "radius": 40
+        },
+        "UP": [
+          175,
+          555,
+          160,
+          125
+        ],
+        "DOWN": [
+          175,
+          840,
+          160,
+          125
+        ],
+        "LEFT": [
+          50,
+          680,
+          125,
+          160
+        ],
+        "RIGHT": [
+          335,
+          680,
+          125,
+          160
+        ],
+        "OK": {
+          "rect": [
+            175,
+            680,
+            160,
+            160
+          ],
+          "shape": "oval"
+        }
+      }
+    }
+  ]
+}

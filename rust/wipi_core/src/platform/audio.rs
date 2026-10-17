@@ -32,6 +32,9 @@ enum AppAudioCommand {
         pcm: f32,
         midi: f32,
     },
+    /// 일시정지: 재생 중인 시퀀스를 그 자리에서 멈추고(출력도 멈춤), 재개하면 멈춘 시간만큼 미뤄 이어서 재생한다.
+    /// 게임 시계도 일시정지 동안 멈추므로(PauseClock) 음악과 게임이 어긋나지 않는다.
+    SetPaused(bool),
 }
 
 pub struct AudioEngine {
@@ -91,9 +94,12 @@ impl AudioEngine {
         });
 
         let mut playbacks: BTreeMap<AudioHandle, Playback> = BTreeMap::new();
+        let mut paused_at: Option<Instant> = None;
 
         loop {
-            let command = if let Some(deadline) = playbacks.values().map(Playback::next_deadline).min() {
+            // 일시정지 중에는 시퀀스를 진행하지 않고 명령만 기다린다
+            let next_deadline = if paused_at.is_none() { playbacks.values().map(Playback::next_deadline).min() } else { None };
+            let command = if let Some(deadline) = next_deadline {
                 match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
                     Ok(command) => Some(command),
                     Err(RecvTimeoutError::Timeout) => None,
@@ -123,6 +129,27 @@ impl AudioEngine {
                         pcm_player.set_volume(pcm.clamp(0.0, 1.0));
                         if let Some(midi_player) = &midi_player {
                             midi_player.set_volume(midi.clamp(0.0, 1.0));
+                        }
+                    }
+                    AppAudioCommand::SetPaused(true) => {
+                        if paused_at.is_none() {
+                            paused_at = Some(Instant::now());
+                            pcm_player.pause();
+                            if let Some(midi_player) = &midi_player {
+                                midi_player.pause();
+                            }
+                        }
+                    }
+                    AppAudioCommand::SetPaused(false) => {
+                        if let Some(at) = paused_at.take() {
+                            let paused_for = at.elapsed();
+                            for playback in playbacks.values_mut() {
+                                playback.started_at += paused_for;
+                            }
+                            pcm_player.play();
+                            if let Some(midi_player) = &midi_player {
+                                midi_player.play();
+                            }
                         }
                     }
                 }
@@ -157,6 +184,11 @@ impl AudioEngine {
                 }
             }
         }
+    }
+
+    /// 일시정지/재개 — 시퀀스와 출력을 멈췄다가 멈춘 시간만큼 미뤄 이어서 재생
+    pub fn set_paused(&self, paused: bool) {
+        let _ = self.tx.send(AppAudioCommand::SetPaused(paused));
     }
 
     /// 볼륨 설정 (0.0~1.0, 0이면 음소거) — PCM(효과음)/MIDI(배경음악) 분리

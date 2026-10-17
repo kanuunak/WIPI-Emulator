@@ -41,3 +41,11 @@ cd android && ./gradlew :app:assembleDebug     # Windows: .\gradlew.bat :app:ass
 ## 4. 아직 실행하지 않은 것
 - `build-rust-android.sh`/`.ps1` 실제 실행과 LOAD 정렬 확인(NDK가 세션에 없음 — CI에서 확인).
 - `.ps1`은 PowerShell이 없어 실행 검증을 못 했다.
+
+## 4. 오픈소스 고지 다시 만들기 (의존성이 바뀌었을 때)
+```sh
+python3 scripts/gen-licenses.py      # cargo metadata + Gradle releaseRuntimeClasspath + 캐시의 LICENSE·POM
+# Maven Central이 막힌 세션: GRADLE_ARGS="-I /tmp/mirror.init.gradle" python3 scripts/gen-licenses.py
+```
+- 결과 `android/app/src/main/assets/licenses/third_party.txt`를 커밋한다(앱 설정 > 정보 > 오픈소스 라이선스 > Rust / Android).
+- 새 도구·의존성 없음(파이썬 표준 라이브러리, cargo, gradle). `ThirdPartyNoticesTest`가 wie·RustJava 버전이 Cargo.lock과 다르면 실패한다.
