@@ -195,7 +195,7 @@
 ```text
 [Phase 4] 명세 §7.4, §8, §9를 읽어.
 
-1. README_FORK.md: 포크 목적, 원본 앱·wie 크레딧(wie LICENSE의 권장 문구 "This project is based on wie (https://github.com/dlunch/wie), created by Inseok Lee." 포함), 설치 방법(드래프트 릴리스 APK), 빌드 방법(BUILD.md 링크), 알려진 제한(재개 시 게임 시간 점프, 게임 호환성은 코어에 달림, 일시정지 중에도 신스 스레드 동작), 테스트한 기기와 OS.
+1. README.md: 포크 목적, 원본 앱·wie 크레딧(wie LICENSE의 권장 문구 "This project is based on wie (https://github.com/dlunch/wie), created by Inseok Lee." 포함), 설치 방법(드래프트 릴리스 APK), 빌드 방법(BUILD.md 링크), 알려진 제한(재개 시 게임 시간 점프, 게임 호환성은 코어에 달림, 일시정지 중에도 신스 스레드 동작), 테스트한 기기와 OS.
 2. docs/fold-retro/UPSTREAM_CANDIDATES.md: 업스트림 제안 후보(접기·펴기 세션 종료, 에뮬 화면 인셋, 일시정지 음소거, neodgm 고지)와 각 diff 요약.
 3. `git diff --stat 43a6098 -- rust/`가 비어 있음을 확인(rebase했다면 기준은 `git merge-base HEAD upstream/main`).
 4. 명세 §8 승인 기준 체크리스트를 채운다(에이전트 확인 / 사용자 확인 필요 구분).

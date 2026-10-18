@@ -49,7 +49,7 @@ Phase 4는 이 세션에서 이어서 끝냈다. 결과는 `HANDOFF_Phase4.md`(�
 ```text
 [Phase 4] docs/fold-retro/HANDOFF_Phase3.6.md를 먼저 읽어. 명세 §7.4, §8, §9를 읽어.
 
-1. README_FORK.md: 포크 목적, 원본 앱·wie 크레딧(wie LICENSE 권장 문구 "This project is based on wie (https://github.com/dlunch/wie), created by Inseok Lee." 포함), 코어는 `kanuunak/wie` 포크(ParkJeongseop/wie 38f7e04f + KTF 호환 수정 2건)임을 명시, 설치(드래프트 릴리스 APK), 빌드(BUILD.md), 기능(좌우 분할·배치 편집·화면 필터·키패드 테마·스킨 팩·게임별 설정·배경 이미지·진단 로그·폴더 임포트), 알려진 제한(재개 시 게임 시간 점프, 호환성은 코어에 달림, DRM 인증 게임 미지원, 무거운 게임 CPU), 테스트한 기기와 OS.
+1. README.md: 포크 목적, 원본 앱·wie 크레딧(wie LICENSE 권장 문구 "This project is based on wie (https://github.com/dlunch/wie), created by Inseok Lee." 포함), 코어는 `kanuunak/wie` 포크(ParkJeongseop/wie 38f7e04f + KTF 호환 수정 2건)임을 명시, 설치(드래프트 릴리스 APK), 빌드(BUILD.md), 기능(좌우 분할·배치 편집·화면 필터·키패드 테마·스킨 팩·게임별 설정·배경 이미지·진단 로그·폴더 임포트), 알려진 제한(재개 시 게임 시간 점프, 호환성은 코어에 달림, DRM 인증 게임 미지원, 무거운 게임 CPU), 테스트한 기기와 OS.
 2. docs/fold-retro/UPSTREAM_CANDIDATES.md: 업스트림 후보 — 앱(접기·펴기 세션 유지, 인셋, 일시정지 음소거, neodgm 고지, 비동기 정지, zip/폴더 임포트, 스킨 팩) / wie(KTF DB EOF 0 채움, DB 용량, GetAccessLevel — `kanuunak/wie` 커밋 링크).
 3. rust 변경 점검: `git diff --stat 43a6098 -- rust/`에는 session.rs(tick 1ms)와 Cargo.toml·Cargo.lock(wie 출처를 kanuunak/wie로)만 있어야 한다. 그 밖의 rust/ 변경이 있으면 보고.
 4. 오픈소스 고지 자동 생성(배포 전 필수, 명세 §4.2 P1) — 새 도구·의존성이 필요하면 변경안만 보고하고 승인받는다.

@@ -467,7 +467,7 @@ EmulatorLayout
 | 커버에서 게임 비율 정확, 키가 내비·제스처 영역과 안 겹침 | ✅ 사용자 | DEVICE_METRICS.md(Debug 7 HUD), 이후 커버 스크린샷 |
 | 일시정지·백그라운드에서 BGM 멈춤 | ✅ 사용자(Debug 35) | 코드: EmulatorSession.pause → 볼륨 0, resume → 설정 볼륨(Phase 1) |
 | 포크가 `rust/`를 바꾸지 않음 | ⚠️ 승인된 예외만 | `git diff --stat 43a6098 -- rust/` = session.rs(tick 1ms)·Cargo.toml·Cargo.lock(wie 출처 줄 13개). 모두 사용자 승인(AGENTS.md 규칙 1) |
-| T12 회귀 없음, 알려진 제한이 README에 | ✅ 에이전트(README) + 사용자(T12·T22, Debug 35) | README_FORK.md "알려진 제한". 고지 화면 "Rust / Android" 표시 확인 |
+| T12 회귀 없음, 알려진 제한이 README에 | ✅ 에이전트(README) + 사용자(T12·T22, Debug 35) | README.md "알려진 제한". 고지 화면 "Rust / Android" 표시 확인 |
 
 **남은 사용자 확인**: (선택) T9 게임패드. 그 밖은 Debug 35에서 통과(T15 커버, 3버튼 내비게이션 — 키패드가 버튼 줄 위에서 끝나고 겹치지 않음 — 포함, 2026-10-16). 기기: SM-F946N, One UI 8.5 / Android 16.
 
