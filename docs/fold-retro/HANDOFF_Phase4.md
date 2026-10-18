@@ -10,7 +10,7 @@ PR #7(`ccr-2a4c3abb-uqwv87` → `fold-retro`)에 Phase 3.6 + Phase 4. 사용자�
 |---|---|
 | README.md | 목적, wie 권장 문구·원본 앱 크레딧, 코어 포크(`kanuunak/wie` d45b8a7c = 38f7e04f + 2건, 커밋 링크), 설치, 빌드, 기능, 알려진 제한, 테스트 기기 |
 | UPSTREAM_CANDIDATES.md | 앱 11건(우선순위·커밋·주의), wie 2건(커밋 링크, GetAccessLevel은 스텁임을 명시), 남은 STUBS |
-| rust/ 점검 | `git diff --stat 43a6098 -- rust/` = session.rs(tick 1ms) + Cargo.toml + Cargo.lock(wie 출처 줄 13개만). 승인된 예외뿐 |
+| rust/ 점검 | `git diff --stat 43a6098 -- rust/` = session.rs(tick 1ms, 일시정지를 플랫폼에 전달) + platform/mod.rs·audio.rs(`PauseClock`, 일시정지 때 소리 시퀀스 멈춤 — 2026-10-16 추가) + Cargo.toml + Cargo.lock(wie 출처 줄 13개만). 모두 승인된 예외 |
 | 오픈소스 고지 자동 생성 | **새 도구·의존성 없이** `scripts/gen-licenses.py`(파이썬 표준 + cargo metadata + Gradle) → `assets/licenses/third_party.txt`(Rust 162 + Android 85, 원문 87종, 288KB). 앱 설정 > 정보 > 오픈소스 라이선스 > "Rust / Android". `ThirdPartyNoticesTest`가 wie·RustJava 버전 불일치를 잡는다 |
 | 명세 §8·§7.4 | §8을 판정표로(에이전트/사용자, 근거), §7.4에 T13~T22 추가, §9·§4.2 갱신 |
 | .so 16KB 정렬 | Debug 34 APK에서 확인: LOAD Align 0x4000 ×4, `zipalign -c -P 16` 통과, package `com.knifecrab.foldretro`, label Fold Retro / 폴드 레트로 |
